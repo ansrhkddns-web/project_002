@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TimeFlow - Emotional Daily Record</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div id="app" class="app-shell">
+      <header class="top-bar glass">
+        <div>
+          <p class="eyebrow">Time-Based Emotional Journal</p>
+          <h1 id="screenTitle">TimeFlow</h1>
+        </div>
+        <button id="openSettings" class="icon-btn">⚙</button>
+      </header>
+
+      <main id="main"></main>
+
+      <nav id="bottomNav" class="bottom-nav glass hidden">
+        <button data-screen="home" class="nav-btn active">홈</button>
+        <button data-screen="camera" class="nav-btn">카메라</button>
+        <button data-screen="timeline" class="nav-btn">타임라인</button>
+        <button data-screen="albums" class="nav-btn">앨범</button>
+      </nav>
+    </div>
+
+    <div id="toast" class="toast hidden"></div>
+
+    <div id="modalBackdrop" class="modal-backdrop hidden">
+      <div id="modal" class="modal glass"></div>
+    </div>
+
+    <template id="onboardingTemplate">
+      <section class="onboarding">
+        <div class="onboarding-card" id="onboardingCard"></div>
+        <div class="dots" id="dots"></div>
+      </section>
+    </template>
+
+    <script src="app.js"></script>
+  </body>
+</html>
