@@ -1,7 +1,7 @@
 const copy = [
   {
     id: 'ONB_PAGE_001',
-    bg: 'linear-gradient(160deg,#0f1838,#2d3f74,#070a14)',
+    bg: "linear-gradient(180deg, rgba(11,22,35,0.28), rgba(5,13,22,0.66)), url('https://images.unsplash.com/photo-1473773508845-188df298d2d1?auto=format&fit=crop&w=1100&q=80')",
     title_kr: '하루를 남기는 방식', title_en: 'A way to mark a day',
     body_kr: ['하루는 지나가지만','그날의 모습은 남길 수 있습니다','','이 앱은','순간을 모으기보다','시간을 이어갑니다'],
     body_en: ['Days pass','But how you were that day','can stay'],
@@ -9,21 +9,21 @@ const copy = [
   },
   {
     id: 'ONB_PAGE_002',
-    bg: 'linear-gradient(160deg,#17244f,#355c89,#0f172d)',
+    bg: "linear-gradient(180deg, rgba(15,21,34,0.25), rgba(8,14,22,0.68)), url('https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=1100&q=80')",
     title_kr: '어제에서 오늘로', title_en: 'From yesterday to today',
     body_kr: ['어제의 당신이','오늘의 당신을 부릅니다','','조금 더 가까이','조금 더 비슷하게','','하루는 그렇게','서로를 닮아갑니다'],
     body_en: ['Yesterday calls to today','Not exactly the same','Just close enough to feel time']
   },
   {
     id: 'ONB_PAGE_003',
-    bg: 'linear-gradient(160deg,#2c2d5a,#46509d,#171c3a)',
+    bg: "linear-gradient(180deg, rgba(15,23,35,0.25), rgba(7,12,18,0.66)), url('https://images.unsplash.com/photo-1503919545889-aef636e10ad4?auto=format&fit=crop&w=1100&q=80')",
     title_kr: '매일 다른 자리에서', title_en: 'In different places, every day',
     body_kr: ['집에서도','친구 곁에서도','땀을 흘린 뒤에도','','아이는','각자의 하루 속에서','조금씩 자랍니다'],
     body_en: ['At home','With friends','After moving, playing, growing','','Life changes','And so do they']
   },
   {
     id: 'ONB_PAGE_004',
-    bg: 'linear-gradient(160deg,#2e2958,#5a64bb,#161c38)',
+    bg: "linear-gradient(180deg, rgba(18,24,39,0.25), rgba(6,11,18,0.7)), url('https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&w=1100&q=80')",
     title_kr: '나중에 알게 되는 것들', title_en: 'What you’ll see later',
     body_kr: ['하루하루는','크게 달라 보이지 않지만','','시간이 지나','다시 보면','분명한 변화가 있습니다'],
     body_en: ['Not much changes in a day','But everything changes','when days come together'],
@@ -78,31 +78,43 @@ $('#modalBackdrop').addEventListener('click', (e) => { if (e.target.id === 'moda
 
 function setTitle(v) { $('#screenTitle').textContent = v; }
 function showNav(v = true) { $('#bottomNav').classList.toggle('hidden', !v); }
+function showTopBar(v = true) { document.querySelector('.top-bar').classList.toggle('hidden', !v); }
 
 function onboardingView() {
-  showNav(false); setTitle('Welcome');
+  showNav(false); showTopBar(false); setTitle('Welcome');
   const page = copy[state.onboardingPage];
   const cBody = state.lang === 'kr' ? page.body_kr : page.body_en;
   $('#main').innerHTML = `
-    <section class="card hero" style="background:${page.bg}">
-      <p class="kr">${state.lang === 'kr' ? page.title_kr : page.title_en}</p>
-      <p class="en">${state.lang === 'kr' ? page.title_en : page.title_kr}</p>
-      <p class="body">${cBody.join('\n')}</p>
-      <div class="btn-row">
-        ${page.cta_kr ? `<button class="btn primary" id="ctaBtn">${state.lang === 'kr' ? page.cta_kr : 'Start Journey →'}</button>` : ''}
-        ${state.onboardingPage > 0 ? '<button class="btn secondary" id="prevBtn">이전</button>' : ''}
+    <section class="onb-wrap">
+      <div class="onb-visual" style="background:${page.bg};">
+        <div class="onb-controls"><span>⌗</span><span>⚡</span></div>
+        <div class="ghost-shape">
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 2L2 22H22L12 2Z" fill="white" fill-opacity="0.18"></path>
+            <path d="M12 2L2 22H22L12 2Z" stroke="white" stroke-dasharray="4 2" stroke-width="0.7"></path>
+          </svg>
+        </div>
+        <div class="focus-box"><div class="focus-dot"></div></div>
+        <div class="align-badge">🪄 ALIGNING...</div>
+      </div>
+
+      <div class="onb-content">
+        <div class="dots">${copy.map((_,i)=>`<span class="dot ${i===state.onboardingPage?'active':''}"></span>`).join('')}</div>
+        <h2 class="onb-title">${state.lang === 'kr' ? page.title_kr : page.title_en}</h2>
+        <p class="onb-subtitle">${state.lang === 'kr' ? page.title_en : page.title_kr}</p>
+        <p class="onb-desc">${cBody.join('\n')}</p>
+
+        <div class="onb-actions">
+          ${page.cta_kr ? `<button class="cta-main" id="ctaBtn">${state.lang === 'kr' ? page.cta_kr : 'Start Journey →'}</button>` : ''}
+          ${!page.cta_kr ? `<button class="btn secondary" id="nextBtn">다음으로</button>` : ''}
+          <button class="cta-subtle" id="loginBtn">Already have an account? <b>Log in</b></button>
+          ${state.onboardingPage > 0 ? '<button class="btn secondary" id="prevBtn">이전 페이지</button>' : ''}
+        </div>
       </div>
     </section>
-    <div class="dots">${copy.map((_,i)=>`<span class="dot ${i===state.onboardingPage?'active':''}"></span>`).join('')}</div>
   `;
-  $('#main').onwheel = (e) => {
-    if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
-      state.onboardingPage = Math.max(0, Math.min(copy.length - 1, state.onboardingPage + (e.deltaX > 0 ? 1 : -1)));
-      onboardingView();
-    }
-  };
-  $('#prevBtn')?.addEventListener('click', () => { state.onboardingPage -= 1; onboardingView(); });
-  $('#ctaBtn')?.addEventListener('click', () => {
+
+  const toNext = () => {
     if (state.onboardingPage === copy.length - 1) {
       state.onboardingCompleted = true;
       save();
@@ -113,11 +125,26 @@ function onboardingView() {
     }
     state.onboardingPage += 1;
     onboardingView();
-  });
+  };
+
+  $('#ctaBtn')?.addEventListener('click', toNext);
+  $('#nextBtn')?.addEventListener('click', toNext);
+  $('#prevBtn')?.addEventListener('click', () => { state.onboardingPage -= 1; onboardingView(); });
+  $('#loginBtn')?.addEventListener('click', () => toast('로그인 화면은 다음 단계에서 연결됩니다.'));
+
+  let startX = 0;
+  $('#main').ontouchstart = (e) => { startX = e.touches[0].clientX; };
+  $('#main').ontouchend = (e) => {
+    const delta = e.changedTouches[0].clientX - startX;
+    if (Math.abs(delta) < 35) return;
+    if (delta < 0 && state.onboardingPage < copy.length - 1) state.onboardingPage += 1;
+    if (delta > 0 && state.onboardingPage > 0) state.onboardingPage -= 1;
+    onboardingView();
+  };
 }
 
 function homeView() {
-  showNav(true); setTitle('Home');
+  showNav(true); showTopBar(true); setTitle('Home');
   const today = fmtDate();
   const albumId = state.activeAlbum;
   const doneToday = !!state.entries[`${albumId}:${today}`];
@@ -142,7 +169,7 @@ function homeView() {
 }
 
 function cameraView() {
-  showNav(true); setTitle('Camera');
+  showNav(true); showTopBar(true); setTitle('Camera');
   const today = fmtDate();
   const key = `${state.activeAlbum}:${today}`;
   const exists = !!state.entries[key];
@@ -173,7 +200,7 @@ function cameraView() {
 }
 
 function timelineView() {
-  showNav(true); setTitle('Timeline');
+  showNav(true); showTopBar(true); setTitle('Timeline');
   const now = new Date();
   const y = now.getFullYear(); const m = now.getMonth();
   const start = new Date(y, m, 1); const days = new Date(y, m + 1, 0).getDate();
@@ -201,7 +228,7 @@ function timelineView() {
 }
 
 function albumsView() {
-  showNav(true); setTitle('Albums');
+  showNav(true); showTopBar(true); setTitle('Albums');
   $('#main').innerHTML = `
     <section class="card">
       <h2>앨범 관리</h2>
