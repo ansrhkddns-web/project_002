@@ -56,11 +56,18 @@ const state = {
     speed: 'normal',
     resolution: '1080p',
     removeWatermark: false,
+  },
+  exportJob: {
+    status: 'idle', // idle | running | done | canceled
+    progress: 0,
+    updatedAt: null,
   }
 };
 
 const $ = (s) => document.querySelector(s);
 const fmtDate = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
+let adTimer = null;
+let exportTimer = null;
 
 function save() {
   localStorage.setItem('lang', state.lang);
@@ -251,6 +258,43 @@ function timelineView() {
   $('#toExport').onclick = () => { state.screen = 'export'; setActiveNav('export'); render(); };
 }
 
+
+function startExportGeneration() {
+  if (state.exportJob.status === 'running') return;
+  if (exportTimer) clearInterval(exportTimer);
+
+  state.exportJob = { status: 'running', progress: 0, updatedAt: new Date().toISOString() };
+  render();
+
+  exportTimer = setInterval(() => {
+    const step = Math.floor(Math.random() * 12) + 8;
+    state.exportJob.progress = Math.min(100, state.exportJob.progress + step);
+    state.exportJob.updatedAt = new Date().toISOString();
+
+    if (state.exportJob.progress >= 100) {
+      clearInterval(exportTimer);
+      exportTimer = null;
+      state.exportJob.status = 'done';
+      toast(`영상 생성 완료 (${state.export.resolution.toUpperCase()}, ${state.export.speed})`);
+      render();
+      return;
+    }
+
+    render();
+  }, 700);
+}
+
+function cancelExportGeneration() {
+  if (exportTimer) {
+    clearInterval(exportTimer);
+    exportTimer = null;
+  }
+  state.exportJob.status = 'canceled';
+  state.exportJob.updatedAt = new Date().toISOString();
+  toast('영상 생성이 취소되었습니다.');
+  render();
+}
+
 function exportView() {
   showNav(true); showTopBar(true); showFab(false); setTitle('Export Timelapse');
   const frameMap = { '7': 7, '30': 30, 'all': Math.max(45, Object.keys(state.entries).length || 100) };
@@ -296,7 +340,16 @@ function exportView() {
         <button id="wmBtn" class="pro-btn">${state.pay==='subscribed' ? (state.export.removeWatermark ? 'ON' : 'OFF') : 'PRO ◈'}</button>
       </div>
 
-      <button id="generateBtn" class="generate-btn"><span class="material-symbols-outlined">movie_creation</span>Generate Video</button>
+      <div class="job-card">
+        <div class="job-head">
+          <strong>${state.exportJob.status === 'running' ? 'Generating...' : state.exportJob.status === 'done' ? 'Last export completed' : state.exportJob.status === 'canceled' ? 'Last export canceled' : 'Ready to export'}</strong>
+          <span>${state.exportJob.progress}%</span>
+        </div>
+        <div class="bar"><div class="bar-fill" style="width:${state.exportJob.progress}%"></div></div>
+      </div>
+
+      <button id="generateBtn" class="generate-btn" ${state.exportJob.status === 'running' ? 'disabled' : ''}><span class="material-symbols-outlined">movie_creation</span>${state.exportJob.status === 'running' ? 'Generating...' : 'Generate Video'}</button>
+      ${state.exportJob.status === 'running' ? '<button id="cancelGenerate" class="btn secondary">생성 취소</button>' : ''}
     </section>`;
 
   document.querySelectorAll('[data-range]').forEach((el) => {
@@ -327,20 +380,22 @@ function exportView() {
   };
 
   $('#generateBtn').onclick = () => {
-    const runGenerate = () => {
-      toast(`영상 생성 시작 (${state.export.resolution.toUpperCase()}, ${state.export.speed})`);
-    };
+    if (state.exportJob.status === 'running') return;
 
     if (state.pay === 'subscribed') {
-      runGenerate();
+      startExportGeneration();
       return;
     }
 
-    openRewardAdGate(runGenerate);
+    openRewardAdGate(startExportGeneration);
   };
+
+  $('#cancelGenerate')?.addEventListener('click', cancelExportGeneration);
 }
 
 function openRewardAdGate(onComplete) {
+  if (adTimer) clearInterval(adTimer);
+
   openModal(`
     <h3>영상 준비 중</h3>
     <p style="color:var(--muted)">잠시만 기다려주세요.</p>
@@ -351,19 +406,27 @@ function openRewardAdGate(onComplete) {
     </div>`);
 
   let remain = 30;
-  const interval = setInterval(() => {
+  adTimer = setInterval(() => {
     remain -= 1;
     const pct = Math.round(((30 - remain) / 30) * 100);
     $('#adProgress').style.width = `${pct}%`;
     $('#adTimer').textContent = `${Math.max(0, remain)}초 남음`;
     if (remain <= 0) {
-      clearInterval(interval);
+      clearInterval(adTimer);
+      adTimer = null;
       closeModal();
       onComplete();
     }
   }, 1000);
 
-  $('#cancelAd').onclick = () => { clearInterval(interval); closeModal(); toast('생성이 취소되었습니다.'); };
+  $('#cancelAd').onclick = () => {
+    if (adTimer) {
+      clearInterval(adTimer);
+      adTimer = null;
+    }
+    closeModal();
+    toast('생성이 취소되었습니다.');
+  };
 }
 
 function createAlbum() {

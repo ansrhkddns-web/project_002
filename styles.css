@@ -141,7 +141,10 @@ h1, h2, h3, p { margin: 0; }
 .wm-card strong { font-size: 36px; }
 .wm-card p { margin-top: 4px; color: var(--muted); font-size: 26px; }
 .pro-btn { border: 1px solid rgba(239,190,65,.35); border-radius: 10px; background: rgba(239,190,65,.12); color: #f0be4f; font-weight: 800; min-width: 100px; height: 44px; }
+.job-card { margin-top: 12px; border-radius: 12px; padding: 12px; background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.08); }
+.job-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 14px; }
 .generate-btn { margin-top: 16px; border: 0; width: 100%; height: 62px; border-radius: 16px; background: var(--primary); color: #fff; font-size: 40px; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.generate-btn:disabled { opacity: .6; cursor: not-allowed; }
 
 @media (max-width: 430px) {
   .export-settings h2 { font-size: 34px; }
