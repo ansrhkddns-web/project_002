@@ -165,6 +165,7 @@ h1, h2, h3, p { margin: 0; }
 .pay-top { display: flex; justify-content: space-between; align-items: center; padding: 14px; }
 .pay-icon { width: 42px; height: 42px; border: 0; border-radius: 50%; background: rgba(0,0,0,.3); color: #dce8ec; }
 .pay-restore { border: 0; background: transparent; color: #cbd7dd; font-size: 12px; font-weight: 700; letter-spacing: .08em; }
+.pay-restore[disabled] { opacity: .55; }
 .pay-hero { padding: 8px 24px 6px; text-align: center; }
 .pay-badge { display: inline-flex; gap: 6px; align-items: center; border: 1px solid rgba(19,200,236,.45); color: var(--primary); background: rgba(19,200,236,.12); border-radius: 999px; padding: 7px 14px; font-size: 12px; font-weight: 800; }
 .pay-hero h2 { margin-top: 14px; font-size: 52px; line-height: .92; letter-spacing: -.03em; }
@@ -185,6 +186,7 @@ h1, h2, h3, p { margin: 0; }
 .plan.active { border-color: var(--primary); box-shadow: 0 0 0 1px rgba(19,200,236,.2) inset; }
 .save-tag { position: absolute; right: 14px; top: 14px; font-size: 14px; font-weight: 800; color: #06202b; background: var(--primary); border-radius: 999px; padding: 5px 10px; }
 .pay-cta { margin-top: 14px; width: 100%; border: 0; border-radius: 16px; height: 64px; background: var(--primary); color: #09222e; font-size: 43px; font-weight: 800; }
+.pay-cta:disabled { opacity: .6; }
 .pay-note { text-align: center; margin-top: 10px; color: #8ca0aa; font-size: 17px; }
 .pay-links { margin-top: 10px; display: flex; justify-content: center; gap: 12px; color: #748a94; }
 .pay-links button { border: 0; background: none; color: inherit; font-size: 16px; }

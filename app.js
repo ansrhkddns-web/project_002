@@ -62,8 +62,10 @@ const state = {
     progress: 0,
     updatedAt: null,
   },
-  paywallPlan: 'yearly',
+  paywallPlan: localStorage.getItem('paywallPlan') || 'yearly',
   paywallFrom: 'home',
+  pendingPremiumAction: null,
+  billingState: 'idle', // idle | restoring | purchasing
 };
 
 const $ = (s) => document.querySelector(s);
@@ -81,6 +83,7 @@ function save() {
   localStorage.setItem('albums', JSON.stringify(state.albums));
   localStorage.setItem('activeAlbum', state.activeAlbum);
   localStorage.setItem('entries', JSON.stringify(state.entries));
+  localStorage.setItem('paywallPlan', state.paywallPlan);
 }
 
 function toast(msg) {
@@ -100,10 +103,24 @@ function showTopBar(v = true) { $('.top-bar').classList.toggle('hidden', !v); }
 function showFab(v = true) { $('#fab').classList.toggle('hidden', !v); }
 
 
-function goPaywall(from = state.screen) {
+function goPaywall(from = state.screen, pendingAction = null) {
   state.paywallFrom = from;
+  state.pendingPremiumAction = pendingAction;
   state.screen = 'paywall';
   render();
+}
+
+function runPendingPremiumAction() {
+  if (!state.pendingPremiumAction) return;
+  if (state.pendingPremiumAction === 'unlock4k') {
+    state.export.resolution = '4k';
+    toast('4K 잠금 해제됨');
+  }
+  if (state.pendingPremiumAction === 'toggleWatermark') {
+    state.export.removeWatermark = true;
+    toast('워터마크 제거가 활성화되었습니다.');
+  }
+  state.pendingPremiumAction = null;
 }
 
 function countAlbumEntries(albumId) {
@@ -370,7 +387,7 @@ function exportView() {
   document.querySelectorAll('[data-resolution]').forEach((el) => {
     el.onclick = () => {
       if (el.dataset.resolution === '4k' && state.pay !== 'subscribed') {
-        goPaywall('export');
+        goPaywall('export', 'unlock4k');
         return;
       }
       state.export.resolution = el.dataset.resolution;
@@ -380,7 +397,7 @@ function exportView() {
 
   $('#wmBtn').onclick = () => {
     if (state.pay !== 'subscribed') {
-      goPaywall('export');
+      goPaywall('export', 'toggleWatermark');
       return;
     }
     state.export.removeWatermark = !state.export.removeWatermark;
@@ -457,7 +474,7 @@ function settingsModal() {
     <div class="btn-row"><button class="btn primary" id="saveSettings">저장</button><button class="btn secondary" id="authBtn">${state.auth === 'googleLinked' ? '로그아웃' : 'Google 연결'}</button><button class="btn secondary" id="proBtn">${state.pay==='subscribed'?'Pro 해제':'Pro 체험'}</button></div>`);
   $('#saveSettings').onclick = () => { state.lang = $('#langSel').value; state.reminderTime = $('#timeSel').value; save(); closeModal(); render(); toast('설정 저장 완료'); };
   $('#authBtn').onclick = () => { state.auth = state.auth === 'googleLinked' ? 'guest' : 'googleLinked'; save(); closeModal(); toast(state.auth === 'googleLinked' ? 'Google 연결 완료' : '로그아웃 완료'); };
-  $('#proBtn').onclick = () => { closeModal(); goPaywall(state.screen); };
+  $('#proBtn').onclick = () => { closeModal(); goPaywall(state.screen, null); };
 }
 
 
@@ -470,7 +487,7 @@ function paywallView() {
 
       <div class="pay-top">
         <button id="payClose" class="pay-icon material-symbols-outlined">close</button>
-        <button id="restoreBtn" class="pay-restore">RESTORE PURCHASE</button>
+        <button id="restoreBtn" class="pay-restore" ${state.billingState !== 'idle' ? 'disabled' : ''}>${state.billingState==='restoring'?'RESTORING...':'RESTORE PURCHASE'}</button>
       </div>
 
       <div class="pay-hero">
@@ -500,7 +517,7 @@ function paywallView() {
           </label>
         </div>
 
-        <button id="startTrial" class="pay-cta">Start 7-Day Free Trial</button>
+        <button id="startTrial" class="pay-cta" ${state.billingState !== 'idle' ? 'disabled' : ''}>${state.billingState==='purchasing'?'Processing...':'Start 7-Day Free Trial'}</button>
         <p class="pay-note">Recurring billing. Cancel anytime in Settings.</p>
         <div class="pay-links"><button id="privacyBtn">Privacy Policy</button><span>•</span><button id="termsBtn">Terms of Service</button></div>
       </div>
@@ -519,18 +536,38 @@ function paywallView() {
     render();
   };
   $('#restoreBtn').onclick = () => {
-    toast('복원 가능한 구독을 확인 중입니다...');
+    if (state.billingState !== 'idle') return;
+    state.billingState = 'restoring';
+    toast('구매 복원 중...');
+    setTimeout(() => {
+      state.billingState = 'idle';
+      state.pay = 'subscribed';
+      save();
+      runPendingPremiumAction();
+      toast('구매 복원이 완료되었습니다.');
+      state.screen = state.paywallFrom || 'home';
+      setActiveNav(state.screen === 'paywall' ? 'home' : state.screen);
+      render();
+    }, 1200);
   };
   $('#startTrial').onclick = () => {
-    state.pay = 'subscribed';
-    save();
-    toast(state.paywallPlan === 'yearly' ? '연간 플랜 체험 시작!' : '월간 플랜 구독 시작!');
-    state.screen = state.paywallFrom || 'export';
-    setActiveNav(state.screen === 'paywall' ? 'home' : state.screen);
-    render();
+    if (state.billingState !== 'idle') return;
+    state.billingState = 'purchasing';
+    toast('결제 처리 중...');
+    setTimeout(() => {
+      state.billingState = 'idle';
+      state.pay = 'subscribed';
+      save();
+      runPendingPremiumAction();
+      toast(state.paywallPlan === 'yearly' ? '연간 플랜 체험 시작!' : '월간 플랜 구독 시작!');
+      state.screen = state.paywallFrom || 'export';
+      setActiveNav(state.screen === 'paywall' ? 'home' : state.screen);
+      render();
+    }, 1200);
   };
-  $('#privacyBtn').onclick = () => toast('Privacy Policy 준비 중');
-  $('#termsBtn').onclick = () => toast('Terms of Service 준비 중');
+  $('#privacyBtn').onclick = () => openModal('<h3>Privacy Policy</h3><p style="color:var(--muted)">개인정보 처리방침 초안입니다. 실제 배포 시 정식 문서 URL로 연결하세요.</p><div class="btn-row"><button class="btn primary" id="closeLegal">닫기</button></div>');
+  $('#termsBtn').onclick = () => openModal('<h3>Terms of Service</h3><p style="color:var(--muted)">이용약관 초안입니다. 실제 배포 시 정식 문서 URL로 연결하세요.</p><div class="btn-row"><button class="btn primary" id="closeLegal">닫기</button></div>');
+  $('#modal').addEventListener('click', (e) => { if (e.target && e.target.id === 'closeLegal') closeModal(); }, { once: true });
 }
 
 function setActiveNav(screen) {
