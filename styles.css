@@ -157,3 +157,42 @@ h1, h2, h3, p { margin: 0; }
   .mut { font-size: 18px; }
   .pill, .meta { font-size: 14px; }
 }
+
+/* paywall */
+.paywall { position: relative; min-height: calc(100vh - 16px); border-radius: 24px; overflow: hidden; background: #101f22; border: 1px solid rgba(255,255,255,.06); }
+.pay-bg { position: absolute; inset: 0 0 45% 0; background-image: linear-gradient(to bottom, rgba(0,0,0,.28), rgba(16,31,34,.95)), url('https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&w=1200&q=80'); background-size: cover; background-position: center; }
+.pay-top, .pay-hero, .pay-features, .pay-bottom { position: relative; z-index: 2; }
+.pay-top { display: flex; justify-content: space-between; align-items: center; padding: 14px; }
+.pay-icon { width: 42px; height: 42px; border: 0; border-radius: 50%; background: rgba(0,0,0,.3); color: #dce8ec; }
+.pay-restore { border: 0; background: transparent; color: #cbd7dd; font-size: 12px; font-weight: 700; letter-spacing: .08em; }
+.pay-hero { padding: 8px 24px 6px; text-align: center; }
+.pay-badge { display: inline-flex; gap: 6px; align-items: center; border: 1px solid rgba(19,200,236,.45); color: var(--primary); background: rgba(19,200,236,.12); border-radius: 999px; padding: 7px 14px; font-size: 12px; font-weight: 800; }
+.pay-hero h2 { margin-top: 14px; font-size: 52px; line-height: .92; letter-spacing: -.03em; }
+.pay-hero p { margin-top: 8px; color: #c5d2d9; font-size: 20px; }
+.pay-features { padding: 8px 18px; display: grid; gap: 14px; }
+.pay-features article { display: grid; grid-template-columns: 50px 1fr; gap: 12px; align-items: start; }
+.pay-features article > span { width: 50px; height: 50px; display: grid; place-items: center; border-radius: 12px; background: #183036; color: var(--primary); border: 1px solid rgba(255,255,255,.06); }
+.pay-features h3 { font-size: 40px; line-height: 1; }
+.pay-features p { margin-top: 5px; color: #91a8b2; font-size: 19px; line-height: 1.28; }
+.pay-bottom { margin-top: 10px; padding: 18px 18px 20px; border-top-left-radius: 24px; border-top-right-radius: 24px; background: rgba(24,44,48,.95); border-top: 1px solid rgba(255,255,255,.08); }
+.trust { text-align: center; color: #a1b6c1; margin-bottom: 12px; font-size: 18px; }
+.pay-plans { display: grid; gap: 10px; }
+.plan { position: relative; border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.04); border-radius: 14px; padding: 14px; display: block; }
+.plan input { display: none; }
+.plan strong { font-size: 40px; }
+.plan p { margin-top: 6px; color: #afbdc6; font-size: 18px; }
+.plan small { margin-top: 5px; display: block; color: var(--primary); font-size: 17px; font-weight: 700; }
+.plan.active { border-color: var(--primary); box-shadow: 0 0 0 1px rgba(19,200,236,.2) inset; }
+.save-tag { position: absolute; right: 14px; top: 14px; font-size: 14px; font-weight: 800; color: #06202b; background: var(--primary); border-radius: 999px; padding: 5px 10px; }
+.pay-cta { margin-top: 14px; width: 100%; border: 0; border-radius: 16px; height: 64px; background: var(--primary); color: #09222e; font-size: 43px; font-weight: 800; }
+.pay-note { text-align: center; margin-top: 10px; color: #8ca0aa; font-size: 17px; }
+.pay-links { margin-top: 10px; display: flex; justify-content: center; gap: 12px; color: #748a94; }
+.pay-links button { border: 0; background: none; color: inherit; font-size: 16px; }
+
+@media (max-width:430px){
+  .pay-hero h2{font-size:44px;}
+  .pay-features h3{font-size:34px;}
+  .pay-features p{font-size:16px;}
+  .plan strong{font-size:34px;}
+  .pay-cta{font-size:34px;}
+}

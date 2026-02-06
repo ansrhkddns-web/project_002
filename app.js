@@ -61,7 +61,9 @@ const state = {
     status: 'idle', // idle | running | done | canceled
     progress: 0,
     updatedAt: null,
-  }
+  },
+  paywallPlan: 'yearly',
+  paywallFrom: 'home',
 };
 
 const $ = (s) => document.querySelector(s);
@@ -96,6 +98,13 @@ function setTitle(v) { $('#screenTitle').textContent = v; }
 function showNav(v = true) { $('#bottomNav').classList.toggle('hidden', !v); }
 function showTopBar(v = true) { $('.top-bar').classList.toggle('hidden', !v); }
 function showFab(v = true) { $('#fab').classList.toggle('hidden', !v); }
+
+
+function goPaywall(from = state.screen) {
+  state.paywallFrom = from;
+  state.screen = 'paywall';
+  render();
+}
 
 function countAlbumEntries(albumId) {
   return Object.keys(state.entries).filter((k) => k.startsWith(`${albumId}:`)).length;
@@ -361,7 +370,7 @@ function exportView() {
   document.querySelectorAll('[data-resolution]').forEach((el) => {
     el.onclick = () => {
       if (el.dataset.resolution === '4k' && state.pay !== 'subscribed') {
-        toast('4K는 프로 사용자 전용입니다.');
+        goPaywall('export');
         return;
       }
       state.export.resolution = el.dataset.resolution;
@@ -371,7 +380,7 @@ function exportView() {
 
   $('#wmBtn').onclick = () => {
     if (state.pay !== 'subscribed') {
-      toast('워터마크 제거는 Pro 전용입니다.');
+      goPaywall('export');
       return;
     }
     state.export.removeWatermark = !state.export.removeWatermark;
@@ -448,7 +457,80 @@ function settingsModal() {
     <div class="btn-row"><button class="btn primary" id="saveSettings">저장</button><button class="btn secondary" id="authBtn">${state.auth === 'googleLinked' ? '로그아웃' : 'Google 연결'}</button><button class="btn secondary" id="proBtn">${state.pay==='subscribed'?'Pro 해제':'Pro 체험'}</button></div>`);
   $('#saveSettings').onclick = () => { state.lang = $('#langSel').value; state.reminderTime = $('#timeSel').value; save(); closeModal(); render(); toast('설정 저장 완료'); };
   $('#authBtn').onclick = () => { state.auth = state.auth === 'googleLinked' ? 'guest' : 'googleLinked'; save(); closeModal(); toast(state.auth === 'googleLinked' ? 'Google 연결 완료' : '로그아웃 완료'); };
-  $('#proBtn').onclick = () => { state.pay = state.pay === 'subscribed' ? 'none' : 'subscribed'; save(); closeModal(); toast(state.pay === 'subscribed' ? 'Pro 활성화' : 'Free 전환'); render(); };
+  $('#proBtn').onclick = () => { closeModal(); goPaywall(state.screen); };
+}
+
+
+function paywallView() {
+  showNav(false); showTopBar(false); showFab(false); setTitle('Loopic Premium');
+
+  $('#main').innerHTML = `
+    <section class="paywall">
+      <div class="pay-bg"></div>
+
+      <div class="pay-top">
+        <button id="payClose" class="pay-icon material-symbols-outlined">close</button>
+        <button id="restoreBtn" class="pay-restore">RESTORE PURCHASE</button>
+      </div>
+
+      <div class="pay-hero">
+        <span class="pay-badge"><span class="material-symbols-outlined">diamond</span> LOOPIC PREMIUM</span>
+        <h2>Master Time.</h2>
+        <p>Unlock the full power of time travel with daily tracking.</p>
+      </div>
+
+      <div class="pay-features">
+        <article><span class="material-symbols-outlined">collections_bookmark</span><div><h3>Unlimited Albums</h3><p>Track everything, everywhere. No limits on how many memories you save.</p></div></article>
+        <article><span class="material-symbols-outlined">calendar_month</span><div><h3>Long-Term Vision</h3><p>Unlock 365+ day projects. Visualize your progress over years.</p></div></article>
+        <article><span class="material-symbols-outlined">4k</span><div><h3>Cinema Quality</h3><p>Export in 4K HD Video. Share your story with crystal clear quality.</p></div></article>
+        <article><span class="material-symbols-outlined">cloud_upload</span><div><h3>Secure Cloud</h3><p>Automatic Data Backup. Never lose a moment of your timeline.</p></div></article>
+      </div>
+
+      <div class="pay-bottom">
+        <p class="trust">Trusted by 10k+ loopers</p>
+        <div class="pay-plans">
+          <label class="plan ${state.paywallPlan==='monthly'?'active':''}">
+            <input type="radio" name="plan" value="monthly" ${state.paywallPlan==='monthly'?'checked':''} />
+            <div><strong>Monthly</strong><p>$2.99 / mo</p></div>
+          </label>
+          <label class="plan ${state.paywallPlan==='yearly'?'active':''}">
+            <input type="radio" name="plan" value="yearly" ${state.paywallPlan==='yearly'?'checked':''} />
+            <div><strong>Yearly</strong><p>$19.99 / year</p><small>7-Day Free Trial Included</small></div>
+            <span class="save-tag">SAVE 45%</span>
+          </label>
+        </div>
+
+        <button id="startTrial" class="pay-cta">Start 7-Day Free Trial</button>
+        <p class="pay-note">Recurring billing. Cancel anytime in Settings.</p>
+        <div class="pay-links"><button id="privacyBtn">Privacy Policy</button><span>•</span><button id="termsBtn">Terms of Service</button></div>
+      </div>
+    </section>`;
+
+  document.querySelectorAll('input[name="plan"]').forEach((el) => {
+    el.addEventListener('change', () => {
+      state.paywallPlan = el.value;
+      paywallView();
+    });
+  });
+
+  $('#payClose').onclick = () => {
+    state.screen = state.paywallFrom || 'home';
+    setActiveNav(state.screen === 'paywall' ? 'home' : state.screen);
+    render();
+  };
+  $('#restoreBtn').onclick = () => {
+    toast('복원 가능한 구독을 확인 중입니다...');
+  };
+  $('#startTrial').onclick = () => {
+    state.pay = 'subscribed';
+    save();
+    toast(state.paywallPlan === 'yearly' ? '연간 플랜 체험 시작!' : '월간 플랜 구독 시작!');
+    state.screen = state.paywallFrom || 'export';
+    setActiveNav(state.screen === 'paywall' ? 'home' : state.screen);
+    render();
+  };
+  $('#privacyBtn').onclick = () => toast('Privacy Policy 준비 중');
+  $('#termsBtn').onclick = () => toast('Terms of Service 준비 중');
 }
 
 function setActiveNav(screen) {
@@ -469,7 +551,7 @@ function attachGlobal() {
 
 function render() {
   if (!state.onboardingCompleted) return onboardingView();
-  ({ home: homeView, camera: cameraView, timeline: timelineView, export: exportView }[state.screen] || homeView)();
+  ({ home: homeView, camera: cameraView, timeline: timelineView, export: exportView, paywall: paywallView }[state.screen] || homeView)();
 }
 
 attachGlobal();
