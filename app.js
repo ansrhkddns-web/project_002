@@ -51,7 +51,6 @@ const state = {
   entries: JSON.parse(localStorage.getItem('entries') || '{}'),
   adCooldownAt: 0,
   adCount: 0,
-  rewardPass: Number(localStorage.getItem('rewardPass') || 0),
   export: {
     range: '7',
     speed: 'normal',
@@ -73,7 +72,6 @@ function save() {
   localStorage.setItem('albums', JSON.stringify(state.albums));
   localStorage.setItem('activeAlbum', state.activeAlbum);
   localStorage.setItem('entries', JSON.stringify(state.entries));
-  localStorage.setItem('rewardPass', String(state.rewardPass));
 }
 
 function toast(msg) {
@@ -299,7 +297,6 @@ function exportView() {
       </div>
 
       <button id="generateBtn" class="generate-btn"><span class="material-symbols-outlined">movie_creation</span>Generate Video</button>
-      ${state.pay !== 'subscribed' ? `<p class="ad-note">무료 사용자는 30초 리워드 광고 시청 후 생성할 수 있어요. (보상 ${state.rewardPass}회)</p>` : ''}
     </section>`;
 
   document.querySelectorAll('[data-range]').forEach((el) => {
@@ -330,35 +327,27 @@ function exportView() {
   };
 
   $('#generateBtn').onclick = () => {
-    if (state.pay === 'subscribed') {
+    const runGenerate = () => {
       toast(`영상 생성 시작 (${state.export.resolution.toUpperCase()}, ${state.export.speed})`);
+    };
+
+    if (state.pay === 'subscribed') {
+      runGenerate();
       return;
     }
-    if (state.rewardPass > 0) {
-      state.rewardPass -= 1;
-      save();
-      toast('리워드 사용! 영상 생성 시작');
-      render();
-      return;
-    }
-    openRewardAdGate(() => {
-      state.rewardPass += 1;
-      save();
-      toast('리워드 획득! 영상 생성을 진행하세요.');
-      render();
-    });
+
+    openRewardAdGate(runGenerate);
   };
 }
 
-function openRewardAdGate(onReward) {
+function openRewardAdGate(onComplete) {
   openModal(`
-    <h3>리워드 광고 (30초)</h3>
-    <p style="color:var(--muted)">광고를 끝까지 시청하면 영상 생성 1회 이용권을 드립니다.</p>
+    <h3>영상 준비 중</h3>
+    <p style="color:var(--muted)">잠시만 기다려주세요.</p>
     <div class="bar" style="margin:8px 0 4px"><div id="adProgress" class="bar-fill" style="width:0%"></div></div>
     <p id="adTimer" class="meta" style="display:block;text-align:center">30초 남음</p>
     <div class="btn-row">
       <button class="btn secondary" id="cancelAd">취소</button>
-      <button class="btn primary" id="claimAd" disabled>시청 완료 후 받기</button>
     </div>`);
 
   let remain = 30;
@@ -369,13 +358,12 @@ function openRewardAdGate(onReward) {
     $('#adTimer').textContent = `${Math.max(0, remain)}초 남음`;
     if (remain <= 0) {
       clearInterval(interval);
-      $('#adTimer').textContent = '시청 완료! 보상을 받을 수 있습니다.';
-      $('#claimAd').disabled = false;
+      closeModal();
+      onComplete();
     }
   }, 1000);
 
-  $('#cancelAd').onclick = () => { clearInterval(interval); closeModal(); toast('광고 시청이 취소되었습니다.'); };
-  $('#claimAd').onclick = () => { clearInterval(interval); closeModal(); onReward(); };
+  $('#cancelAd').onclick = () => { clearInterval(interval); closeModal(); toast('생성이 취소되었습니다.'); };
 }
 
 function createAlbum() {
