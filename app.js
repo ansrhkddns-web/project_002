@@ -31,6 +31,13 @@ const copy = [
   }
 ];
 
+const thumbs = [
+  "https://images.unsplash.com/photo-1517836357463-d25dfeac3438?auto=format&fit=crop&w=600&q=80",
+  "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=600&q=80",
+  "https://images.unsplash.com/photo-1472120435266-53107fd0c44a?auto=format&fit=crop&w=600&q=80",
+  "https://images.unsplash.com/photo-1475924156734-496f6cac6ec1?auto=format&fit=crop&w=600&q=80"
+];
+
 const state = {
   lang: localStorage.getItem('lang') || 'kr',
   screen: 'home',
@@ -40,14 +47,14 @@ const state = {
   reminderTime: localStorage.getItem('reminderTime') || '20:00',
   auth: localStorage.getItem('auth') || 'guest',
   pay: localStorage.getItem('pay') || 'none',
-  albums: JSON.parse(localStorage.getItem('albums') || '[{"albumId":"a1","title":"기본 앨범","createdAt":"2026-01-01"}]'),
+  albums: JSON.parse(localStorage.getItem('albums') || '[{"albumId":"a1","title":"Post-workout","createdAt":"2026-01-01"},{"albumId":"a2","title":"Morning Coffee","createdAt":"2026-01-12"},{"albumId":"a3","title":"Sunset Watch","createdAt":"2026-02-01"}]'),
   activeAlbum: localStorage.getItem('activeAlbum') || 'a1',
   entries: JSON.parse(localStorage.getItem('entries') || '{}'),
   adCooldownAt: 0,
   adCount: 0,
 };
 
-const $ = (sel) => document.querySelector(sel);
+const $ = (s) => document.querySelector(s);
 const fmtDate = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
 
 function save() {
@@ -63,72 +70,66 @@ function save() {
 }
 
 function toast(msg) {
-  const el = $('#toast');
-  el.textContent = msg;
-  el.classList.remove('hidden');
-  setTimeout(() => el.classList.add('hidden'), 1800);
+  const t = $('#toast');
+  t.textContent = msg;
+  t.classList.remove('hidden');
+  setTimeout(() => t.classList.add('hidden'), 1800);
 }
 
-function openModal(html) {
-  $('#modal').innerHTML = html;
-  $('#modalBackdrop').classList.remove('hidden');
-}
+function openModal(html) { $('#modal').innerHTML = html; $('#modalBackdrop').classList.remove('hidden'); }
 function closeModal() { $('#modalBackdrop').classList.add('hidden'); }
 $('#modalBackdrop').addEventListener('click', (e) => { if (e.target.id === 'modalBackdrop') closeModal(); });
 
 function setTitle(v) { $('#screenTitle').textContent = v; }
 function showNav(v = true) { $('#bottomNav').classList.toggle('hidden', !v); }
-function showTopBar(v = true) { document.querySelector('.top-bar').classList.toggle('hidden', !v); }
+function showTopBar(v = true) { $('.top-bar').classList.toggle('hidden', !v); }
+function showFab(v = true) { $('#fab').classList.toggle('hidden', !v); }
+
+function countAlbumEntries(albumId) {
+  return Object.keys(state.entries).filter((k) => k.startsWith(`${albumId}:`)).length;
+}
 
 function onboardingView() {
-  showNav(false); showTopBar(false); setTitle('Welcome');
+  showNav(false); showTopBar(false); showFab(false);
   const page = copy[state.onboardingPage];
-  const cBody = state.lang === 'kr' ? page.body_kr : page.body_en;
+  const body = (state.lang === 'kr' ? page.body_kr : page.body_en).join('\n');
   $('#main').innerHTML = `
     <section class="onb-wrap">
-      <div class="onb-visual" style="background:${page.bg};">
+      <div class="onb-visual" style="background:${page.bg}">
         <div class="onb-controls"><span>⌗</span><span>⚡</span></div>
         <div class="ghost-shape">
-          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path d="M12 2L2 22H22L12 2Z" fill="white" fill-opacity="0.18"></path>
-            <path d="M12 2L2 22H22L12 2Z" stroke="white" stroke-dasharray="4 2" stroke-width="0.7"></path>
-          </svg>
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 2L2 22H22L12 2Z" fill="white" fill-opacity="0.18"></path><path d="M12 2L2 22H22L12 2Z" stroke="white" stroke-dasharray="4 2" stroke-width="0.7"></path></svg>
         </div>
         <div class="focus-box"><div class="focus-dot"></div></div>
         <div class="align-badge">🪄 ALIGNING...</div>
       </div>
-
       <div class="onb-content">
         <div class="dots">${copy.map((_,i)=>`<span class="dot ${i===state.onboardingPage?'active':''}"></span>`).join('')}</div>
         <h2 class="onb-title">${state.lang === 'kr' ? page.title_kr : page.title_en}</h2>
         <p class="onb-subtitle">${state.lang === 'kr' ? page.title_en : page.title_kr}</p>
-        <p class="onb-desc">${cBody.join('\n')}</p>
-
+        <p class="onb-desc">${body}</p>
         <div class="onb-actions">
-          ${page.cta_kr ? `<button class="cta-main" id="ctaBtn">${state.lang === 'kr' ? page.cta_kr : 'Start Journey →'}</button>` : ''}
-          ${!page.cta_kr ? `<button class="btn secondary" id="nextBtn">다음으로</button>` : ''}
+          ${page.cta_kr ? `<button class="cta-main" id="ctaBtn">${state.lang === 'kr' ? page.cta_kr : 'Start Journey →'}</button>` : `<button class="btn secondary" id="nextBtn">다음으로</button>`}
           <button class="cta-subtle" id="loginBtn">Already have an account? <b>Log in</b></button>
           ${state.onboardingPage > 0 ? '<button class="btn secondary" id="prevBtn">이전 페이지</button>' : ''}
         </div>
       </div>
-    </section>
-  `;
+    </section>`;
 
-  const toNext = () => {
+  const next = () => {
     if (state.onboardingPage === copy.length - 1) {
       state.onboardingCompleted = true;
+      state.screen = 'home';
       save();
-      state.screen = 'camera';
-      toast('온보딩 완료! 카메라로 이동합니다.');
+      toast('온보딩 완료!');
       render();
       return;
     }
     state.onboardingPage += 1;
     onboardingView();
   };
-
-  $('#ctaBtn')?.addEventListener('click', toNext);
-  $('#nextBtn')?.addEventListener('click', toNext);
+  $('#ctaBtn')?.addEventListener('click', next);
+  $('#nextBtn')?.addEventListener('click', next);
   $('#prevBtn')?.addEventListener('click', () => { state.onboardingPage -= 1; onboardingView(); });
   $('#loginBtn')?.addEventListener('click', () => toast('로그인 화면은 다음 단계에서 연결됩니다.'));
 
@@ -143,36 +144,63 @@ function onboardingView() {
   };
 }
 
-function homeView() {
-  showNav(true); showTopBar(true); setTitle('Home');
-  const today = fmtDate();
-  const albumId = state.activeAlbum;
-  const doneToday = !!state.entries[`${albumId}:${today}`];
-  const total = Object.keys(state.entries).filter(k => k.startsWith(`${albumId}:`)).length;
-  $('#main').innerHTML = `
-    <section class="card">
-      <h2>${doneToday ? '오늘 기록 완료 🌟' : '오늘의 기록이 비어 있어요'}</h2>
-      <p style="color:var(--muted);margin-top:8px;">${doneToday ? '멋져요. 내일도 이어가볼까요?' : '지금 한 장 촬영하고 시간을 이어가세요.'}</p>
-      <div class="btn-row">
-        <button class="btn primary" id="goCamera">카메라 열기</button>
-        <button class="btn secondary" id="goTimeline">기록 보기</button>
+function loopCard(a, i) {
+  const total = countAlbumEntries(a.albumId) || (i + 1) * 20;
+  const streak = Math.max(3, Math.min(42, total % 45));
+  const missed = (i === 1) ? 3 : 0;
+  const doneToday = !!state.entries[`${a.albumId}:${fmtDate()}`];
+  const toneClass = doneToday ? 'ok' : '';
+  const statusText = doneToday ? 'Perfect streak!' : missed ? `${missed} Missed days` : `${streak} Day Streak`;
+  const btnText = doneToday ? 'Done for today' : 'Snap Today';
+  const progress = doneToday ? 100 : Math.min(95, 35 + streak);
+
+  return `
+    <article class="loop-card">
+      <div class="loop-body">
+        <div class="loop-thumb" style="background-image:url('${thumbs[i % thumbs.length]}')"><span class="loop-day">${total}</span></div>
+        <div class="loop-content">
+          <div>
+            <h3 class="loop-title">${a.title}</h3>
+            <p class="loop-meta">Started ${new Date(a.createdAt).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</p>
+            <div class="badge-line ${toneClass}"><span class="material-symbols-outlined">${doneToday ? 'verified' : 'local_fire_department'}</span><span>${statusText}</span></div>
+          </div>
+          <button class="card-btn ${doneToday ? 'secondary' : ''}" data-snap="${a.albumId}">${btnText}</button>
+        </div>
       </div>
+      <div class="progress-wrap"><div class="progress" style="width:${progress}%"></div></div>
+    </article>`;
+}
+
+function homeView() {
+  showNav(true); showTopBar(true); showFab(true); setTitle('Loopic');
+  const totalSnaps = Object.keys(state.entries).length || 1248;
+  const topStreak = Math.max(...state.albums.map((a) => countAlbumEntries(a.albumId)), 42);
+
+  $('#main').innerHTML = `
+    <section class="stats-grid">
+      <article class="stat-card"><p class="stat-label"><span class="material-symbols-outlined">photo_library</span>Total Snaps</p><p class="stat-value">${totalSnaps}</p></article>
+      <article class="stat-card"><p class="stat-label"><span class="material-symbols-outlined">local_fire_department</span>Top Streak</p><p class="stat-value">${topStreak}<span style="font-size:13px;color:var(--muted)"> days</span></p></article>
     </section>
-    <section class="kpi-grid">
-      <article class="kpi"><p>연속 기록</p><strong>${Math.min(total, 12)}일</strong></article>
-      <article class="kpi"><p>총 기록</p><strong>${total}</strong></article>
-      <article class="kpi"><p>앨범</p><strong>${state.albums.length}</strong></article>
-    </section>
-  `;
-  $('#goCamera').onclick = () => { state.screen = 'camera'; render(); };
-  $('#goTimeline').onclick = () => { state.screen = 'timeline'; render(); };
+    <section class="section-head"><h2>Active Loops</h2><button id="viewAll">View All</button></section>
+    <section class="loop-list">${state.albums.map(loopCard).join('')}</section>
+    <section class="empty-box"><span class="material-symbols-outlined" style="font-size:34px;color:var(--primary)">add_a_photo</span><p style="margin-top:8px">Start a new time loop</p></section>`;
+
+  document.querySelectorAll('[data-snap]').forEach((btn) => {
+    btn.onclick = () => {
+      state.activeAlbum = btn.dataset.snap;
+      state.screen = 'camera';
+      save();
+      render();
+    };
+  });
 }
 
 function cameraView() {
-  showNav(true); showTopBar(true); setTitle('Camera');
+  showNav(true); showTopBar(true); showFab(false); setTitle('Camera');
   const today = fmtDate();
   const key = `${state.activeAlbum}:${today}`;
   const exists = !!state.entries[key];
+
   $('#main').innerHTML = `
     <section class="card">
       <h2>오늘의 촬영</h2>
@@ -185,8 +213,8 @@ function cameraView() {
         <label class="btn secondary" for="upload">사진 선택</label>
         <input id="upload" type="file" accept="image/*" class="hidden" />
       </div>
-    </section>
-  `;
+    </section>`;
+
   $('#opacity').oninput = (e) => { state.silhouetteOpacity = Number(e.target.value); save(); };
   const store = () => {
     if (exists && !confirm('오늘 기록을 덮어쓸까요?')) return;
@@ -200,7 +228,7 @@ function cameraView() {
 }
 
 function timelineView() {
-  showNav(true); showTopBar(true); setTitle('Timeline');
+  showNav(true); showTopBar(true); showFab(false); setTitle('Calendar');
   const now = new Date();
   const y = now.getFullYear(); const m = now.getMonth();
   const start = new Date(y, m, 1); const days = new Date(y, m + 1, 0).getDate();
@@ -212,43 +240,32 @@ function timelineView() {
     const cls = `${state.entries[key] ? 'done' : ''} ${date === fmtDate() ? 'today' : ''}`;
     grid += `<button class="day ${cls}" data-date="${date}">${d}</button>`;
   }
-  $('#main').innerHTML = `
-    <section class="card">
-      <h2>${y}.${m + 1} 기록</h2>
-      <div class="timeline-grid" style="margin-top:12px;">${grid}</div>
-    </section>
-  `;
-  document.querySelectorAll('.day').forEach(el => {
+  $('#main').innerHTML = `<section class="card"><h2>${y}.${m + 1} 기록</h2><div class="timeline-grid" style="margin-top:12px;">${grid}</div></section>`;
+  document.querySelectorAll('.day').forEach((el) => {
     el.onclick = () => {
-      const date = el.dataset.date;
-      const key = `${state.activeAlbum}:${date}`;
-      toast(state.entries[key] ? `${date} 기록 있음` : `${date} 비어 있음`);
+      const key = `${state.activeAlbum}:${el.dataset.date}`;
+      toast(state.entries[key] ? `${el.dataset.date} 기록 있음` : `${el.dataset.date} 비어 있음`);
     };
   });
 }
 
 function albumsView() {
-  showNav(true); showTopBar(true); setTitle('Albums');
+  showNav(true); showTopBar(true); showFab(false); setTitle('Profile');
   $('#main').innerHTML = `
     <section class="card">
       <h2>앨범 관리</h2>
       <p style="color:var(--muted);margin-top:8px;">아이별/프로젝트별 앨범을 관리하세요.</p>
-      <div class="btn-row">
-        <button class="btn primary" id="newAlbum">새 앨범</button>
-      </div>
-      <div style="display:grid;gap:8px;margin-top:12px;">
-        ${state.albums.map(a => `<div class="album-item"><span>${a.title}</span><div><button class="btn secondary pick" data-id="${a.albumId}">선택</button></div></div>`).join('')}
-      </div>
-    </section>
-  `;
+      <div class="btn-row"><button class="btn primary" id="newAlbum">새 앨범</button></div>
+      <div style="display:grid;gap:8px;margin-top:12px;">${state.albums.map((a) => `<div class="album-item"><span>${a.title}</span><button class="btn secondary pick" data-id="${a.albumId}">선택</button></div>`).join('')}</div>
+    </section>`;
+
   $('#newAlbum').onclick = () => {
-    if (state.pay === 'none') {
-      openRewardGate(() => createAlbum());
-      return;
-    }
+    if (state.pay === 'none') { openRewardGate(() => createAlbum()); return; }
     createAlbum();
   };
-  document.querySelectorAll('.pick').forEach(btn => btn.onclick = () => { state.activeAlbum = btn.dataset.id; save(); toast('앨범 변경 완료'); render(); });
+  document.querySelectorAll('.pick').forEach((btn) => {
+    btn.onclick = () => { state.activeAlbum = btn.dataset.id; save(); toast('앨범 변경 완료'); render(); };
+  });
 }
 
 function createAlbum() {
@@ -258,18 +275,12 @@ function createAlbum() {
   state.albums.push({ albumId: id, title, createdAt: new Date().toISOString() });
   state.activeAlbum = id;
   save();
+  toast('새 앨범 생성 완료');
   render();
 }
 
 function openRewardGate(onReward) {
-  openModal(`
-    <h3>리워드 광고 시청</h3>
-    <p style="color:var(--muted)">무료 플랜에서는 이 기능을 사용하려면 광고를 완료해야 해요.</p>
-    <div class="btn-row">
-      <button class="btn primary" id="watchAd">시청 후 계속</button>
-      <button class="btn secondary" id="cancelAd">취소</button>
-    </div>
-  `);
+  openModal(`<h3>리워드 광고 시청</h3><p style="color:var(--muted)">무료 플랜에서는 이 기능을 사용하려면 광고를 완료해야 해요.</p><div class="btn-row"><button class="btn primary" id="watchAd">시청 후 계속</button><button class="btn secondary" id="cancelAd">취소</button></div>`);
   $('#watchAd').onclick = () => { closeModal(); toast('보상 획득!'); onReward(); };
   $('#cancelAd').onclick = () => { closeModal(); toast('취소되었습니다'); };
 }
@@ -279,50 +290,31 @@ function maybeShowInterstitial(next) {
   if (state.pay === 'subscribed' || now < state.adCooldownAt || state.adCount >= 3) { next?.(); return; }
   state.adCooldownAt = now + 60000;
   state.adCount += 1;
-  openModal(`
-    <h3>Interstitial Ad</h3>
-    <p style="color:var(--muted)">닫기 가능한 광고 샘플입니다. 실제 SDK로 교체하세요.</p>
-    <div class="btn-row"><button class="btn primary" id="closeAd">닫기</button></div>
-  `);
+  openModal(`<h3>Interstitial Ad</h3><p style="color:var(--muted)">닫기 가능한 광고 샘플입니다. 실제 SDK로 교체하세요.</p><div class="btn-row"><button class="btn primary" id="closeAd">닫기</button></div>`);
   $('#closeAd').onclick = () => { closeModal(); next?.(); };
 }
 
 function settingsModal() {
   openModal(`
     <h3>설정</h3>
-    <label>언어
-      <select id="langSel" class="btn secondary" style="width:100%;margin-top:6px;">
-        <option value="kr" ${state.lang === 'kr' ? 'selected' : ''}>한국어</option>
-        <option value="en" ${state.lang === 'en' ? 'selected' : ''}>English</option>
-      </select>
-    </label>
-    <label>리마인드 시간
-      <input id="timeSel" type="time" value="${state.reminderTime}" class="btn secondary" style="width:100%;margin-top:6px;" />
-    </label>
-    <div class="btn-row">
-      <button class="btn primary" id="saveSettings">저장</button>
-      <button class="btn secondary" id="authBtn">${state.auth === 'googleLinked' ? '로그아웃' : 'Google 연결'}</button>
-    </div>
-  `);
-  $('#saveSettings').onclick = () => {
-    state.lang = $('#langSel').value;
-    state.reminderTime = $('#timeSel').value;
-    save(); closeModal(); render(); toast('설정 저장 완료');
-  };
-  $('#authBtn').onclick = () => {
-    state.auth = state.auth === 'googleLinked' ? 'guest' : 'googleLinked';
-    save(); closeModal(); toast(state.auth === 'googleLinked' ? 'Google 연결 완료' : '로그아웃 완료');
-  };
+    <label>언어<select id="langSel" class="btn secondary" style="width:100%;margin-top:6px;"><option value="kr" ${state.lang === 'kr' ? 'selected' : ''}>한국어</option><option value="en" ${state.lang === 'en' ? 'selected' : ''}>English</option></select></label>
+    <label>리마인드 시간<input id="timeSel" type="time" value="${state.reminderTime}" class="btn secondary" style="width:100%;margin-top:6px;"/></label>
+    <div class="btn-row"><button class="btn primary" id="saveSettings">저장</button><button class="btn secondary" id="authBtn">${state.auth === 'googleLinked' ? '로그아웃' : 'Google 연결'}</button></div>`);
+  $('#saveSettings').onclick = () => { state.lang = $('#langSel').value; state.reminderTime = $('#timeSel').value; save(); closeModal(); render(); toast('설정 저장 완료'); };
+  $('#authBtn').onclick = () => { state.auth = state.auth === 'googleLinked' ? 'guest' : 'googleLinked'; save(); closeModal(); toast(state.auth === 'googleLinked' ? 'Google 연결 완료' : '로그아웃 완료'); };
 }
 
 function attachGlobal() {
   $('#openSettings').onclick = settingsModal;
-  document.querySelectorAll('.nav-btn').forEach(btn => {
+  $('#fab').onclick = () => {
+    if (state.pay === 'none') openRewardGate(() => createAlbum());
+    else createAlbum();
+  };
+  document.querySelectorAll('.nav-btn').forEach((btn) => {
     btn.onclick = () => {
-      document.querySelectorAll('.nav-btn').forEach(n => n.classList.remove('active'));
+      document.querySelectorAll('.nav-btn').forEach((n) => n.classList.remove('active'));
       btn.classList.add('active');
       state.screen = btn.dataset.screen;
-      if (btn.dataset.screen === 'albums') maybeShowInterstitial(() => render());
       render();
     };
   });
