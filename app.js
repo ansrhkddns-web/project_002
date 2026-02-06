@@ -66,6 +66,7 @@ const state = {
   paywallFrom: 'home',
   pendingPremiumAction: null,
   billingState: 'idle', // idle | restoring | purchasing
+  exportHistory: JSON.parse(localStorage.getItem('exportHistory') || '[]'),
 };
 
 const $ = (s) => document.querySelector(s);
@@ -84,6 +85,7 @@ function save() {
   localStorage.setItem('activeAlbum', state.activeAlbum);
   localStorage.setItem('entries', JSON.stringify(state.entries));
   localStorage.setItem('paywallPlan', state.paywallPlan);
+  localStorage.setItem('exportHistory', JSON.stringify(state.exportHistory));
 }
 
 function toast(msg) {
@@ -301,6 +303,16 @@ function startExportGeneration() {
       clearInterval(exportTimer);
       exportTimer = null;
       state.exportJob.status = 'done';
+      state.exportHistory.unshift({
+        id: `exp-${Date.now()}`,
+        createdAt: new Date().toISOString(),
+        resolution: state.export.resolution,
+        speed: state.export.speed,
+        range: state.export.range,
+        watermarkRemoved: state.export.removeWatermark,
+      });
+      state.exportHistory = state.exportHistory.slice(0, 8);
+      save();
       toast(`영상 생성 완료 (${state.export.resolution.toUpperCase()}, ${state.export.speed})`);
       render();
       return;
@@ -376,6 +388,25 @@ function exportView() {
 
       <button id="generateBtn" class="generate-btn" ${state.exportJob.status === 'running' ? 'disabled' : ''}><span class="material-symbols-outlined">movie_creation</span>${state.exportJob.status === 'running' ? 'Generating...' : 'Generate Video'}</button>
       ${state.exportJob.status === 'running' ? '<button id="cancelGenerate" class="btn secondary">생성 취소</button>' : ''}
+
+      ${state.exportJob.status === 'done' && state.exportHistory.length ? `
+      <section class="card result-card">
+        <h3>Latest Video</h3>
+        <p>${new Date(state.exportHistory[0].createdAt).toLocaleString()} · ${state.exportHistory[0].resolution.toUpperCase()} · ${state.exportHistory[0].speed}</p>
+        <div class="btn-row">
+          <button id="previewResult" class="btn secondary">미리보기</button>
+          <button id="saveResult" class="btn secondary">저장</button>
+          <button id="shareResult" class="btn primary">공유</button>
+        </div>
+      </section>` : ''}
+
+      ${state.exportHistory.length ? `
+      <section class="card result-history">
+        <h3>Export History</h3>
+        <ul>
+          ${state.exportHistory.map((h) => `<li><span>${new Date(h.createdAt).toLocaleDateString()} · ${h.range==='all'?'ALL':h.range+'D'}</span><b>${h.resolution.toUpperCase()}</b></li>`).join('')}
+        </ul>
+      </section>` : ''}
     </section>`;
 
   document.querySelectorAll('[data-range]').forEach((el) => {
@@ -417,6 +448,9 @@ function exportView() {
   };
 
   $('#cancelGenerate')?.addEventListener('click', cancelExportGeneration);
+  $('#previewResult')?.addEventListener('click', () => toast('미리보기 재생 준비 중입니다.'));
+  $('#saveResult')?.addEventListener('click', () => toast('갤러리에 저장되었습니다.'));
+  $('#shareResult')?.addEventListener('click', () => toast('공유 시트가 열렸습니다.'));
 }
 
 function openRewardAdGate(onComplete) {

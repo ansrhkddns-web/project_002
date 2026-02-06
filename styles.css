@@ -180,3 +180,10 @@ h1, h2, h3, p { margin: 0; }
 .pay-links { margin-top: 10px; display: flex; justify-content: center; gap: 12px; color: #748a94; }
 .pay-links button { border: 0; background: none; color: inherit; font-size: .78rem; }
 
+
+.result-card h3,
+.result-history h3 { font-size: 1rem; margin-bottom: 6px; }
+.result-card p { color: var(--muted); font-size: .8rem; }
+.result-history ul { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 6px; }
+.result-history li { display: flex; justify-content: space-between; align-items: center; font-size: .8rem; color: #a7bac4; background: rgba(255,255,255,.03); border-radius: 8px; padding: 8px 10px; }
+.result-history li b { color: #d8eff7; font-size: .78rem; }
