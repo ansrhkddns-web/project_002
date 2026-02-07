@@ -20,10 +20,10 @@
 - 실제 영상 렌더링 파이프라인(RenderService: SDK FFmpeg 브리지 + MediaRecorder fallback) 연결
 - 에러/오프라인/저장공간 부족 케이스 상세 처리(offline listener, storage guard, 에러 매핑)
 - 분석 이벤트 수집(D1/D3/D7, 결제 퍼널, 광고 퍼널) 연결
+- AdsService 실제 광고 SDK 콜백 연결(외부 ads_config.json 키 로딩)
 
 ## 🔄 남은 작업
-1. AdsService를 실제 광고 SDK 콜백으로 교체
-2. 정책 문서 URL(Privacy/Terms) 실제 운영 링크 입력
+1. 정책 문서 URL(Privacy/Terms) 실제 운영 링크 입력
 
 ## ▶ 다음 순차 작업 제안
-1) AdsService 실제 SDK 연결 → 2) 운영 정책 링크 적용
+1) 운영 정책 링크 적용

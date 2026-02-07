@@ -84,11 +84,91 @@ const LEGAL_URLS = {
 };
 
 const AdsService = {
-  showRewarded({ onTick, onFinished, onCanceled }) {
-    if (adTimer) return Promise.reject(new Error('ad_already_running'));
-
+  config: null,
+  initialized: false,
+  sdk() {
+    return window.LoopicAdsSDK || window.AdsSDK || null;
+  },
+  async loadConfig() {
+    if (this.config) return this.config;
+    try {
+      const res = await fetch('./ads_config.json', { cache: 'no-store' });
+      if (!res.ok) throw new Error('ads_config_fetch_failed');
+      this.config = await res.json();
+      return this.config;
+    } catch {
+      throw new Error('ads_config_unavailable');
+    }
+  },
+  platformKey() {
+    const ua = navigator.userAgent || '';
+    if (/Android/i.test(ua)) return 'android';
+    if (/iPhone|iPad|iPod/i.test(ua)) return 'ios';
+    return 'web';
+  },
+  async rewardedAdUnitId() {
+    const config = await this.loadConfig();
+    const platform = this.platformKey();
+    const fromPlatform = config?.rewardedAdUnits?.[platform];
+    if (fromPlatform) return fromPlatform;
+    if (config?.rewardedAdUnits?.default) return config.rewardedAdUnits.default;
+    throw new Error('ads_key_missing');
+  },
+  async ensureInitialized() {
+    if (this.initialized) return;
+    const sdk = this.sdk();
+    if (!sdk?.initialize) {
+      this.initialized = true;
+      return;
+    }
+    const config = await this.loadConfig();
+    await sdk.initialize({
+      appId: config?.appId || 'loopic-dev-app',
+      rewardedAdUnitId: await this.rewardedAdUnitId(),
+    });
+    this.initialized = true;
+  },
+  showRewardedFallback({ onTick, onFinished, onCanceled }) {
     return new Promise((resolve, reject) => {
       let remain = 30;
+      onTick(remain);
+      adTimer = setInterval(() => {
+        remain -= 1;
+        onTick(Math.max(0, remain));
+        if (remain <= 0) {
+          clearInterval(adTimer);
+          adTimer = null;
+          window.__cancelRewardedAd = null;
+          onFinished?.();
+          resolve({ rewarded: true, provider: 'fallback' });
+        }
+      }, 1000);
+
+      window.__cancelRewardedAd = () => {
+        if (adTimer) {
+          clearInterval(adTimer);
+          adTimer = null;
+        }
+        window.__cancelRewardedAd = null;
+        onCanceled?.();
+        reject(new Error('ad_canceled'));
+      };
+    });
+  },
+  async showRewarded({ onTick, onFinished, onCanceled }) {
+    if (adTimer) return Promise.reject(new Error('ad_already_running'));
+
+    await this.ensureInitialized();
+    const adUnitId = await this.rewardedAdUnitId();
+    const sdk = this.sdk();
+
+    if (!sdk?.showRewarded) {
+      return this.showRewardedFallback({ onTick, onFinished, onCanceled });
+    }
+
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      let visualRemain = 30;
       const cleanup = () => {
         if (adTimer) {
           clearInterval(adTimer);
@@ -96,25 +176,53 @@ const AdsService = {
         }
         window.__cancelRewardedAd = null;
       };
-
-      onTick(remain);
-      adTimer = setInterval(() => {
-        remain -= 1;
-        onTick(Math.max(0, remain));
-        if (remain <= 0) {
-          cleanup();
-          onFinished?.();
-          resolve({ rewarded: true });
-        }
-      }, 1000);
-
-      const cancel = () => {
+      const safeResolve = (payload) => {
+        if (settled) return;
+        settled = true;
         cleanup();
-        onCanceled?.();
-        reject(new Error('ad_canceled'));
+        resolve(payload);
+      };
+      const safeReject = (error) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        reject(error);
       };
 
-      window.__cancelRewardedAd = cancel;
+      onTick(visualRemain);
+      adTimer = setInterval(() => {
+        visualRemain = Math.max(3, visualRemain - 1);
+        onTick(visualRemain);
+      }, 1000);
+
+      window.__cancelRewardedAd = () => {
+        try { sdk.closeRewarded?.(); } catch { /* noop */ }
+        onCanceled?.();
+        safeReject(new Error('ad_canceled'));
+      };
+
+      try {
+        sdk.showRewarded({
+          adUnitId,
+          onLoaded: () => {},
+          onOpened: () => {},
+          onRewarded: (meta) => {
+            onTick(0);
+            onFinished?.();
+            safeResolve({ rewarded: true, provider: 'sdk', meta: meta || null });
+          },
+          onClosed: (meta) => {
+            if (meta?.rewarded) return;
+            onCanceled?.();
+            safeReject(new Error('ad_canceled'));
+          },
+          onError: (err) => {
+            safeReject(new Error(err?.code || 'ad_sdk_failed'));
+          },
+        });
+      } catch (error) {
+        safeReject(new Error(error?.message || 'ad_sdk_failed'));
+      }
     });
   },
 };
@@ -1135,8 +1243,15 @@ function openRewardAdGate(onComplete) {
     onComplete();
   }).catch((error) => {
     closeModal();
-    AnalyticsService.track('ad_failed', { code: error?.message || 'ad_failed' });
-    toast('생성이 취소되었습니다.');
+    const code = error?.message || 'ad_failed';
+    AnalyticsService.track('ad_failed', { code });
+    if (code === 'ads_config_unavailable' || code === 'ads_key_missing') {
+      toast('광고 설정 키를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
+    } else if (code === 'ad_sdk_failed') {
+      toast('광고 SDK 실행에 실패했습니다. 다시 시도해주세요.');
+    } else {
+      toast('생성이 취소되었습니다.');
+    }
   }).finally(() => {
     state.adGateState = 'idle';
     window.__cancelRewardedAd = null;
