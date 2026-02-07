@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Loopic Ops Dashboard</title>
+    <style>
+      :root { color-scheme: dark; }
+      body { margin:0; background:#0b1921; color:#eaf6fb; font-family: Inter, system-ui, sans-serif; }
+      .wrap { max-width: 1080px; margin:0 auto; padding:22px; display:grid; gap:14px; }
+      h1 { margin:0; font-size:28px; }
+      .sub { margin:6px 0 0; color:#86a4b2; }
+      .grid { display:grid; gap:12px; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); }
+      .card { border:1px solid rgba(255,255,255,.12); border-radius:14px; padding:14px; background:rgba(255,255,255,.03); }
+      .label { color:#8bb0bf; font-size:12px; text-transform:uppercase; letter-spacing:.08em; }
+      .value { margin-top:6px; font-size:26px; font-weight:800; }
+      .ok { color:#78f2bd; } .warn { color:#ffd586; } .bad { color:#ff8d8d; }
+      table { width:100%; border-collapse: collapse; font-size:13px; }
+      th, td { border-bottom:1px solid rgba(255,255,255,.08); padding:8px 6px; text-align:left; }
+      code { background:rgba(255,255,255,.08); border-radius:8px; padding:2px 6px; }
+      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+      .toolbar { display:flex; gap:8px; flex-wrap:wrap; }
+      button { border:0; border-radius:10px; padding:8px 12px; font-weight:700; background:#16d4ff; color:#062733; cursor:pointer; }
+      .secondary { background:#223944; color:#d8edf3; }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <header>
+        <h1>SDK/분석 운영 모니터링 대시보드</h1>
+        <p class="sub">LocalStorage 이벤트 큐, 광고/결제/렌더 SDK 브리지 상태, 최근 퍼널 이벤트를 빠르게 점검합니다.</p>
+      </header>
+
+      <section class="toolbar">
+        <button id="refreshBtn">새로고침</button>
+        <button id="clearEventsBtn" class="secondary">analyticsEvents 비우기</button>
+      </section>
+
+      <section class="grid">
+        <article class="card"><div class="label">Analytics Queue Size</div><div class="value" id="queueSize">0</div></article>
+        <article class="card"><div class="label">Latest Event</div><div class="value" id="latestEvent">-</div></article>
+        <article class="card"><div class="label">Retention Milestones</div><div class="value" id="retentionState">-</div></article>
+        <article class="card"><div class="label">Billing Subscription</div><div class="value" id="billingState">-</div></article>
+      </section>
+
+      <section class="grid">
+        <article class="card"><div class="label">Ads SDK Bridge</div><div id="adsSdkStatus" class="value">-</div></article>
+        <article class="card"><div class="label">Billing SDK Bridge</div><div id="billingSdkStatus" class="value">-</div></article>
+        <article class="card"><div class="label">Render SDK Bridge</div><div id="renderSdkStatus" class="value">-</div></article>
+        <article class="card"><div class="label">Ads Config Key</div><div id="adsConfigStatus" class="value mono">-</div></article>
+      </section>
+
+      <section class="card">
+        <div class="label">Recent Funnel Events (Top 20)</div>
+        <table>
+          <thead><tr><th>Time</th><th>Event</th><th>Payload</th></tr></thead>
+          <tbody id="eventRows"></tbody>
+        </table>
+      </section>
+    </main>
+
+    <script>
+      const funnelNames = new Set([
+        'paywall_viewed','paywall_plan_selected','purchase_started','purchase_succeeded','purchase_failed',
+        'purchase_restore_started','purchase_restore_succeeded','purchase_restore_failed',
+        'ad_gate_opened','ad_started','ad_reward_granted','ad_canceled','ad_failed','ad_gate_completed',
+        'retention_d1','retention_d3','retention_d7','export_generation_started','export_generation_succeeded','export_generation_failed'
+      ]);
+
+      const parseJSON = (key, fallback) => {
+        try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; }
+        catch { return fallback; }
+      };
+
+      const statusEl = (id, text, cls='') => {
+        const el = document.getElementById(id);
+        el.textContent = text;
+        el.className = `value ${cls}`.trim();
+      };
+
+      async function loadAdsConfigStatus() {
+        try {
+          const res = await fetch('./ads_config.json', { cache: 'no-store' });
+          if (!res.ok) throw new Error();
+          const cfg = await res.json();
+          const keys = cfg.rewardedAdUnits || {};
+          const summary = [keys.android, keys.ios, keys.web].filter(Boolean).map((v) => v.slice(0, 18) + '…').join(' | ');
+          statusEl('adsConfigStatus', summary || 'configured', 'ok');
+        } catch {
+          statusEl('adsConfigStatus', 'ads_config.json unavailable', 'bad');
+        }
+      }
+
+      function render() {
+        const events = parseJSON('analyticsEvents', []);
+        const milestones = parseJSON('analyticsMilestones', { D1:false, D3:false, D7:false });
+        const billing = parseJSON('billingLastSubscription', null);
+
+        statusEl('queueSize', String(events.length), events.length > 0 ? 'ok' : 'warn');
+        statusEl('latestEvent', events.length ? events[events.length - 1].eventName : '-', events.length ? 'ok' : 'warn');
+        statusEl('retentionState', `D1:${milestones.D1?'Y':'N'} D3:${milestones.D3?'Y':'N'} D7:${milestones.D7?'Y':'N'}`, 'ok');
+        statusEl('billingState', billing?.productId || 'none', billing ? 'ok' : 'warn');
+
+        statusEl('adsSdkStatus', window.LoopicAdsSDK || window.AdsSDK ? 'connected' : 'not detected', window.LoopicAdsSDK || window.AdsSDK ? 'ok':'warn');
+        statusEl('billingSdkStatus', window.LoopicBillingSDK || window.BillingSDK ? 'connected' : 'not detected', window.LoopicBillingSDK || window.BillingSDK ? 'ok':'warn');
+        statusEl('renderSdkStatus', window.LoopicRenderSDK || window.RenderSDK ? 'connected' : 'not detected', window.LoopicRenderSDK || window.RenderSDK ? 'ok':'warn');
+
+        const rows = events.filter((e) => funnelNames.has(e.eventName)).slice(-20).reverse();
+        const tbody = document.getElementById('eventRows');
+        tbody.innerHTML = rows.map((e) => `
+          <tr>
+            <td>${new Date(e.at).toLocaleString()}</td>
+            <td><code>${e.eventName}</code></td>
+            <td class="mono">${JSON.stringify(e.payload || {}).slice(0, 180)}</td>
+          </tr>
+        `).join('') || '<tr><td colspan="3">No funnel events yet.</td></tr>';
+      }
+
+      document.getElementById('refreshBtn').addEventListener('click', async () => {
+        render();
+        await loadAdsConfigStatus();
+      });
+      document.getElementById('clearEventsBtn').addEventListener('click', () => {
+        localStorage.removeItem('analyticsEvents');
+        render();
+      });
+
+      render();
+      loadAdsConfigStatus();
+    </script>
+  </body>
+</html>
