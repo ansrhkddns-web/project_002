@@ -74,6 +74,7 @@ const $ = (s) => document.querySelector(s);
 const fmtDate = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
 let adTimer = null;
 let exportTimer = null;
+let cameraFacingMode = 'environment';
 const LEGAL_URLS = {
   privacy: '',
   terms: '',
@@ -134,11 +135,11 @@ const CameraService = {
   isSupported() {
     return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
   },
-  async start(videoEl) {
+  async start(videoEl, facingMode = 'environment') {
     if (!this.isSupported()) throw new Error('camera_not_supported');
     this.stop();
     this.stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment' },
+      video: { facingMode },
       audio: false,
     });
     videoEl.srcObject = this.stream;
@@ -351,32 +352,59 @@ function homeView() {
 }
 
 function cameraView() {
-  showNav(true); showTopBar(true); showFab(false); setTitle('Camera');
+  showNav(false); showTopBar(false); showFab(false); setTitle('Camera');
   const today = fmtDate();
   const key = `${state.activeAlbum}:${today}`;
   const exists = !!state.entries[key];
+  const streak = Math.max(1, countAlbumEntries(state.activeAlbum));
 
   $('#main').innerHTML = `
-    <section class="card">
-      <h2>오늘의 촬영</h2>
-      <p style="color:var(--muted);margin-top:8px;">${exists ? '오늘 기록이 있어요. 다시 촬영하면 덮어쓰기 됩니다.' : '어제와 오늘을 자연스럽게 이어 촬영해보세요.'}</p>
-      <div class="camera-stage">
+    <section class="camera-shell">
+      <div class="camera-stage cinematic">
         <video id="cameraPreview" class="camera-preview" playsinline autoplay muted></video>
-        <div id="cameraStatus" class="camera-status">카메라 연결 중...</div>
-      </div>
-      <label style="display:block;margin:12px 0 6px;color:var(--muted)">실루엣 투명도 (${state.silhouetteOpacity}%)</label>
-      <input id="opacity" class="slider" type="range" min="0" max="100" value="${state.silhouetteOpacity}">
-      <div class="btn-row">
-        <button class="btn primary" id="captureBtn">촬영 후 저장</button>
-        <label class="btn secondary" for="upload">사진 선택</label>
-        <input id="upload" type="file" accept="image/*" class="hidden" />
-      </div>
-    </section>`;
+        <div class="camera-vignette"></div>
 
-  $('#opacity').oninput = (e) => { state.silhouetteOpacity = Number(e.target.value); save(); };
+        <div class="camera-top-actions">
+          <button class="cam-icon-btn" id="camClose">✕</button>
+          <div class="cam-icon-group">
+            <button class="cam-icon-btn" id="timerBtn">⏱</button>
+            <button class="cam-icon-btn" id="flipBtn">⟲</button>
+          </div>
+        </div>
+
+        <div class="camera-meta">
+          <span class="streak-pill">🔥 ${streak} Day Streak</span>
+          <span class="date-pill">${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+        </div>
+
+        <div class="ghost-panel">
+          <div class="ghost-head"><span>Ghost Frame Opacity</span><b>${state.silhouetteOpacity}%</b></div>
+          <input id="opacity" class="slider ghost-slider" type="range" min="0" max="100" value="${state.silhouetteOpacity}">
+        </div>
+
+        <div id="cameraStatus" class="camera-status">카메라 연결 중...</div>
+
+        <div class="camera-bottom-actions">
+          <button class="mini-action" id="galleryBtn">Gallery</button>
+          <button class="shutter-btn" id="captureBtn" aria-label="capture"></button>
+          <button class="mini-action" id="retakeBtn">Retake</button>
+        </div>
+      </div>
+
+      <input id="upload" type="file" accept="image/*" class="hidden" />
+      <p class="camera-hint">${exists ? '오늘 기록이 있어요. 저장하면 덮어쓰기 됩니다.' : '어제 프레임과 정렬해 오늘을 기록해보세요.'}</p>
+    </section>`;
 
   const videoEl = $('#cameraPreview');
   const statusEl = $('#cameraStatus');
+  const opacityEl = $('#opacity');
+  const opacityLabel = document.querySelector('.ghost-head b');
+
+  opacityEl.oninput = (e) => {
+    state.silhouetteOpacity = Number(e.target.value);
+    opacityLabel.textContent = `${state.silhouetteOpacity}%`;
+    save();
+  };
 
   const saveEntry = async (blob, source) => {
     const entryKey = `${state.activeAlbum}:${fmtDate()}`;
@@ -388,6 +416,8 @@ function cameraView() {
       state.entries[entryKey] = { imageUri: filename, updatedAt: new Date().toISOString(), source };
       save();
       toast('저장 완료!');
+      state.screen = 'home';
+      setActiveNav('home');
       render();
     } catch {
       toast('파일 저장에 실패했습니다. 다시 시도해주세요.');
@@ -401,10 +431,11 @@ function cameraView() {
     }
 
     try {
-      await CameraService.start(videoEl);
+      await CameraService.start(videoEl, cameraFacingMode);
       statusEl.classList.add('hidden');
     } catch {
       statusEl.textContent = '카메라 권한이 필요합니다. 브라우저 설정에서 허용해주세요.';
+      statusEl.classList.remove('hidden');
     }
   };
 
@@ -429,9 +460,25 @@ function cameraView() {
     e.target.value = '';
   };
 
+  $('#galleryBtn').onclick = () => $('#upload').click();
+  $('#retakeBtn').onclick = () => {
+    toast('프레임을 재정렬했어요.');
+    initCamera();
+  };
+  $('#camClose').onclick = () => {
+    state.screen = 'home';
+    setActiveNav('home');
+    render();
+  };
+  $('#timerBtn').onclick = () => toast('3초 타이머는 다음 단계에서 연결됩니다.');
+  $('#flipBtn').onclick = async () => {
+    cameraFacingMode = cameraFacingMode === 'environment' ? 'user' : 'environment';
+    await initCamera();
+    toast(cameraFacingMode === 'user' ? '전면 카메라' : '후면 카메라');
+  };
+
   initCamera();
 }
-
 function timelineView() {
   showNav(true); showTopBar(true); showFab(false); setTitle('Calendar');
   const now = new Date();

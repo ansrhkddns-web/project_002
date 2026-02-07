@@ -15,6 +15,7 @@
 - 광고 게이트 중복 실행 방지 및 취소 콜백 정리
 - 정책 문서 URL 상수(Privacy/Terms) 연결 준비
 - 실제 카메라(WebRTC) 촬영 + 파일 저장(File System Access/다운로드 fallback) 연결
+- 카메라 캡처 UI 시네마틱 오버레이/컨트롤로 디자인 개선
 
 ## 🔄 남은 작업
 1. AdsService를 실제 광고 SDK 콜백으로 교체
