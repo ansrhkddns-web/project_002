@@ -25,6 +25,8 @@
 - SDK/분석 운영 모니터링 대시보드 연결(ops-dashboard.html)
 - SDK 키 번들 자동 로테이션/자동 리프레시(sdk_keys.json + KeyRotationService)
 - 실운영 키 배포 파이프라인(CDN/Secrets Manager) 연동(sdk_keys.json delivery sources)
+- 서비스 운영 체크리스트 문서화(service_readiness_checklist.md)
+- UX 통일 업그레이드 준비 문서화(ux_consistency_upgrade_plan.md)
 
 ## 🔄 남은 작업
 - (현재 기준 핵심 기능 작업 완료, 운영 고도화 단계)

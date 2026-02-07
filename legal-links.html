@@ -4,36 +4,28 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Loopic Legal Links</title>
-    <style>
-      :root { color-scheme: dark; }
-      body { margin:0; font-family: Inter, system-ui, sans-serif; background:#0f1f27; color:#eaf6fb; }
-      .wrap { max-width: 760px; margin: 0 auto; padding: 28px 18px 44px; }
-      h1 { margin: 0 0 8px; font-size: 28px; }
-      p { margin: 0 0 20px; color:#9cb8c3; }
-      .card { border:1px solid rgba(255,255,255,.12); border-radius:16px; padding:18px; background:rgba(255,255,255,.03); margin-bottom:14px; }
-      .tag { display:inline-block; font-size:12px; padding:4px 10px; border-radius:999px; background:#19313c; color:#8ee7ff; margin-bottom:8px; }
-      a { color:#4fdfff; font-weight:700; word-break:break-all; }
-      .hint { margin-top:18px; font-size:13px; color:#7f9aa5; }
-    </style>
+    <link rel="stylesheet" href="./styles.css" />
   </head>
-  <body>
-    <main class="wrap">
-      <h1>Loopic 정책 문서 링크 관리</h1>
-      <p>Paywall의 Privacy/Terms 버튼은 이 페이지로 연결됩니다. 운영 링크를 이 페이지에서 중앙 관리하세요.</p>
+  <body class="aux-page">
+    <main class="aux-wrap" style="max-width:760px">
+      <header>
+        <h1 class="aux-title">Loopic 정책 문서 링크 관리</h1>
+        <p class="aux-sub">Paywall의 Privacy/Terms 버튼은 이 페이지로 연결됩니다. 운영 링크를 이 페이지에서 중앙 관리하세요.</p>
+      </header>
 
-      <section id="privacy" class="card">
-        <span class="tag">Privacy Policy</span>
+      <section id="privacy" class="aux-card">
+        <span class="aux-tag">Privacy Policy</span>
         <h2>개인정보 처리방침</h2>
         <a href="https://loopic.app/privacy" target="_blank" rel="noopener">https://loopic.app/privacy</a>
       </section>
 
-      <section id="terms" class="card">
-        <span class="tag">Terms of Service</span>
+      <section id="terms" class="aux-card">
+        <span class="aux-tag">Terms of Service</span>
         <h2>이용약관</h2>
         <a href="https://loopic.app/terms" target="_blank" rel="noopener">https://loopic.app/terms</a>
       </section>
 
-      <p class="hint">운영 환경에서 주소가 변경되면 이 파일의 링크만 수정하면 됩니다.</p>
+      <p class="aux-sub">운영 환경에서 주소가 변경되면 이 파일의 링크만 수정하면 됩니다.</p>
     </main>
   </body>
 </html>

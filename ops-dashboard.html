@@ -4,55 +4,37 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Loopic Ops Dashboard</title>
-    <style>
-      :root { color-scheme: dark; }
-      body { margin:0; background:#0b1921; color:#eaf6fb; font-family: Inter, system-ui, sans-serif; }
-      .wrap { max-width: 1080px; margin:0 auto; padding:22px; display:grid; gap:14px; }
-      h1 { margin:0; font-size:28px; }
-      .sub { margin:6px 0 0; color:#86a4b2; }
-      .grid { display:grid; gap:12px; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); }
-      .card { border:1px solid rgba(255,255,255,.12); border-radius:14px; padding:14px; background:rgba(255,255,255,.03); }
-      .label { color:#8bb0bf; font-size:12px; text-transform:uppercase; letter-spacing:.08em; }
-      .value { margin-top:6px; font-size:26px; font-weight:800; }
-      .ok { color:#78f2bd; } .warn { color:#ffd586; } .bad { color:#ff8d8d; }
-      table { width:100%; border-collapse: collapse; font-size:13px; }
-      th, td { border-bottom:1px solid rgba(255,255,255,.08); padding:8px 6px; text-align:left; }
-      code { background:rgba(255,255,255,.08); border-radius:8px; padding:2px 6px; }
-      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
-      .toolbar { display:flex; gap:8px; flex-wrap:wrap; }
-      button { border:0; border-radius:10px; padding:8px 12px; font-weight:700; background:#16d4ff; color:#062733; cursor:pointer; }
-      .secondary { background:#223944; color:#d8edf3; }
-    </style>
+    <link rel="stylesheet" href="./styles.css" />
   </head>
-  <body>
-    <main class="wrap">
+  <body class="aux-page">
+    <main class="aux-wrap">
       <header>
-        <h1>SDK/분석 운영 모니터링 대시보드</h1>
-        <p class="sub">LocalStorage 이벤트 큐, 광고/결제/렌더 SDK 브리지 상태, 최근 퍼널 이벤트를 빠르게 점검합니다.</p>
+        <h1 class="aux-title">SDK/분석 운영 모니터링 대시보드</h1>
+        <p class="aux-sub">LocalStorage 이벤트 큐, 광고/결제/렌더 SDK 브리지 상태, 최근 퍼널 이벤트를 빠르게 점검합니다.</p>
       </header>
 
-      <section class="toolbar">
-        <button id="refreshBtn">새로고침</button>
-        <button id="clearEventsBtn" class="secondary">analyticsEvents 비우기</button>
+      <section class="aux-toolbar">
+        <button id="refreshBtn" class="btn primary">새로고침</button>
+        <button id="clearEventsBtn" class="btn secondary">analyticsEvents 비우기</button>
       </section>
 
-      <section class="grid">
-        <article class="card"><div class="label">Analytics Queue Size</div><div class="value" id="queueSize">0</div></article>
-        <article class="card"><div class="label">Latest Event</div><div class="value" id="latestEvent">-</div></article>
-        <article class="card"><div class="label">Retention Milestones</div><div class="value" id="retentionState">-</div></article>
-        <article class="card"><div class="label">Billing Subscription</div><div class="value" id="billingState">-</div></article>
+      <section class="aux-grid">
+        <article class="aux-card"><div class="aux-label">Analytics Queue Size</div><div class="aux-value" id="queueSize">0</div></article>
+        <article class="aux-card"><div class="aux-label">Latest Event</div><div class="aux-value" id="latestEvent">-</div></article>
+        <article class="aux-card"><div class="aux-label">Retention Milestones</div><div class="aux-value" id="retentionState">-</div></article>
+        <article class="aux-card"><div class="aux-label">Billing Subscription</div><div class="aux-value" id="billingState">-</div></article>
       </section>
 
-      <section class="grid">
-        <article class="card"><div class="label">Ads SDK Bridge</div><div id="adsSdkStatus" class="value">-</div></article>
-        <article class="card"><div class="label">Billing SDK Bridge</div><div id="billingSdkStatus" class="value">-</div></article>
-        <article class="card"><div class="label">Render SDK Bridge</div><div id="renderSdkStatus" class="value">-</div></article>
-        <article class="card"><div class="label">SDK Key Bundle</div><div id="sdkBundleStatus" class="value mono">-</div><p class="sub" id="sdkBundleSource" style="margin-top:6px">source: -</p></article>
+      <section class="aux-grid">
+        <article class="aux-card"><div class="aux-label">Ads SDK Bridge</div><div id="adsSdkStatus" class="aux-value">-</div></article>
+        <article class="aux-card"><div class="aux-label">Billing SDK Bridge</div><div id="billingSdkStatus" class="aux-value">-</div></article>
+        <article class="aux-card"><div class="aux-label">Render SDK Bridge</div><div id="renderSdkStatus" class="aux-value">-</div></article>
+        <article class="aux-card"><div class="aux-label">SDK Key Bundle</div><div id="sdkBundleStatus" class="aux-value mono">-</div><p class="aux-sub" id="sdkBundleSource" style="margin-top:6px">source: -</p></article>
       </section>
 
-      <section class="card">
-        <div class="label">Recent Funnel Events (Top 20)</div>
-        <table>
+      <section class="aux-card">
+        <div class="aux-label">Recent Funnel Events (Top 20)</div>
+        <table class="aux-table">
           <thead><tr><th>Time</th><th>Event</th><th>Payload</th></tr></thead>
           <tbody id="eventRows"></tbody>
         </table>
@@ -75,7 +57,7 @@
       const statusEl = (id, text, cls='') => {
         const el = document.getElementById(id);
         el.textContent = text;
-        el.className = `value ${cls}`.trim();
+        el.className = `aux-value ${cls}`.trim();
       };
 
       async function loadKeyBundleStatus() {
@@ -116,7 +98,7 @@
         tbody.innerHTML = rows.map((e) => `
           <tr>
             <td>${new Date(e.at).toLocaleString()}</td>
-            <td><code>${e.eventName}</code></td>
+            <td><span class="aux-code">${e.eventName}</span></td>
             <td class="mono">${JSON.stringify(e.payload || {}).slice(0, 180)}</td>
           </tr>
         `).join('') || '<tr><td colspan="3">No funnel events yet.</td></tr>';
