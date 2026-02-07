@@ -63,6 +63,8 @@
         use: 'sig',
         kid: 'loopic-dev-rs256-v1',
       };
+      let latestBundleFromApi = null;
+
       const funnelNames = new Set([
         'paywall_viewed','paywall_plan_selected','purchase_started','purchase_succeeded','purchase_failed',
         'purchase_restore_started','purchase_restore_succeeded','purchase_restore_failed',
@@ -93,12 +95,13 @@
 
 
       function updateExpiryMonitoring(cachedBundle) {
+        const bundle = cachedBundle?.bundle || latestBundleFromApi || null;
         const sections = ['ads', 'billing', 'render'];
         const warnInMs = 14 * 24 * 60 * 60 * 1000;
         const now = Date.now();
         const expiring = [];
         sections.forEach((name) => {
-          const expiry = cachedBundle?.bundle?.[name]?.expiresAt;
+          const expiry = bundle?.[name]?.expiresAt;
           if (!expiry) return;
           const diff = new Date(expiry).getTime() - now;
           if (Number.isFinite(diff) && diff <= warnInMs) {
@@ -160,6 +163,7 @@
           const envelope = await res.json();
           const claims = await verifySignedEnvelope(envelope);
           const cfg = claims.bundle || {};
+          latestBundleFromApi = cfg;
           const adsVer = cfg?.ads?.version || 'n/a';
           const billingVer = cfg?.billing?.version || 'n/a';
           const renderVer = cfg?.render?.version || 'n/a';

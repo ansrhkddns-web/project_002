@@ -22,6 +22,11 @@ localStorage.setItem('sdkKeyAccessToken', 'loopic-ops-dev-token');
 location.reload();
 ```
 
+### 3) 전체 오류 체크/버그 스모크 테스트
+```bash
+./scripts/bug-smoke-test.sh
+```
+
 ## 구현 포인트
 - 온보딩 4페이지 + 완료 플래그(localStorage)
 - 하단 탭 내비게이션
