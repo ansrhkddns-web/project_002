@@ -405,6 +405,91 @@ const RenderService = {
 const appRuntime = {
   isOnline: navigator.onLine,
   lastToastAt: {},
+  analyticsSessionStarted: false,
+};
+
+const AnalyticsService = {
+  queueKey: 'analyticsEvents',
+  installKey: 'analyticsInstallAt',
+  milestoneKey: 'analyticsMilestones',
+  sdk() {
+    return window.LoopicAnalyticsSDK || window.AnalyticsSDK || null;
+  },
+  nowIso() {
+    return new Date().toISOString();
+  },
+  installAt() {
+    const existing = localStorage.getItem(this.installKey);
+    if (existing) return new Date(existing);
+    const now = this.nowIso();
+    localStorage.setItem(this.installKey, now);
+    return new Date(now);
+  },
+  daysSinceInstall() {
+    const start = this.installAt().getTime();
+    const diff = Date.now() - start;
+    return Math.floor(diff / (24 * 60 * 60 * 1000));
+  },
+  milestones() {
+    try {
+      const raw = localStorage.getItem(this.milestoneKey);
+      return raw ? JSON.parse(raw) : { D1: false, D3: false, D7: false };
+    } catch {
+      return { D1: false, D3: false, D7: false };
+    }
+  },
+  saveMilestones(m) {
+    localStorage.setItem(this.milestoneKey, JSON.stringify(m));
+  },
+  enqueue(eventName, payload = {}) {
+    const event = { eventName, payload, at: this.nowIso() };
+    const sdk = this.sdk();
+    if (sdk?.track) {
+      try { sdk.track(eventName, payload); } catch { /* noop */ }
+    }
+
+    try {
+      const raw = localStorage.getItem(this.queueKey);
+      const queue = raw ? JSON.parse(raw) : [];
+      queue.push(event);
+      localStorage.setItem(this.queueKey, JSON.stringify(queue.slice(-300)));
+    } catch {
+      // keep analytics non-blocking
+    }
+
+    return event;
+  },
+  track(eventName, payload = {}) {
+    return this.enqueue(eventName, {
+      ...payload,
+      online: appRuntime.isOnline,
+      screen: state.screen,
+      pay: state.pay,
+    });
+  },
+  trackLifecycleMilestones() {
+    const days = this.daysSinceInstall();
+    const m = this.milestones();
+    if (days >= 1 && !m.D1) {
+      this.track('retention_d1', { daysSinceInstall: days });
+      m.D1 = true;
+    }
+    if (days >= 3 && !m.D3) {
+      this.track('retention_d3', { daysSinceInstall: days });
+      m.D3 = true;
+    }
+    if (days >= 7 && !m.D7) {
+      this.track('retention_d7', { daysSinceInstall: days });
+      m.D7 = true;
+    }
+    this.saveMilestones(m);
+  },
+  boot() {
+    if (appRuntime.analyticsSessionStarted) return;
+    appRuntime.analyticsSessionStarted = true;
+    this.track('session_start', { daysSinceInstall: this.daysSinceInstall() });
+    this.trackLifecycleMilestones();
+  },
 };
 
 function isQuotaError(error) {
@@ -472,6 +557,7 @@ function goPaywall(from = state.screen, pendingAction = null) {
   state.paywallFrom = from;
   state.pendingPremiumAction = pendingAction;
   state.screen = 'paywall';
+  AnalyticsService.track('paywall_viewed', { from, pendingAction: pendingAction || 'none' });
   render();
 }
 
@@ -522,6 +608,7 @@ function onboardingView() {
       state.onboardingCompleted = true;
       state.screen = 'home';
       save();
+      AnalyticsService.track('onboarding_completed', { totalPages: copy.length });
       toast('온보딩 완료!');
       render();
       return;
@@ -776,6 +863,7 @@ async function startExportGeneration() {
   const exportId = `exp-${Date.now()}`;
   exportAbortSignal = { canceled: false };
   state.exportJob = { status: 'running', progress: 0, updatedAt: new Date().toISOString(), activeExportId: exportId };
+  AnalyticsService.track('export_generation_started', { range: state.export.range, speed: state.export.speed, resolution: state.export.resolution });
   render();
 
   try {
@@ -811,12 +899,14 @@ async function startExportGeneration() {
     });
     state.exportHistory = state.exportHistory.slice(0, 8);
     save();
+    AnalyticsService.track('export_generation_succeeded', { engine, range: state.export.range, resolution: state.export.resolution });
     toast(`영상 생성 완료 (${state.export.resolution.toUpperCase()}, ${engine})`);
     render();
   } catch (error) {
     state.exportJob.status = 'canceled';
     state.exportJob.updatedAt = new Date().toISOString();
     if (error?.message === 'render_canceled') {
+      AnalyticsService.track('export_generation_canceled');
       toast('영상 생성이 취소되었습니다.');
     } else {
       const type = mapAppError(error);
@@ -827,6 +917,7 @@ async function startExportGeneration() {
       } else if (type === 'render_unsupported') {
         toast('이 브라우저는 렌더링 fallback(MediaRecorder)을 지원하지 않습니다.');
       } else {
+        AnalyticsService.track('export_generation_failed', { type, code: error?.message || 'unknown' });
         toast('영상 렌더링에 실패했습니다. 다시 시도해주세요.');
       }
     }
@@ -1022,6 +1113,8 @@ function openRewardAdGate(onComplete) {
     </div>`);
 
   state.adGateState = 'showing';
+  AnalyticsService.track('ad_gate_opened', { from: state.screen, range: state.export.range });
+  AnalyticsService.track('ad_started', { type: 'rewarded_video' });
   AdsService.showRewarded({
     onTick: (remain) => {
       const pct = Math.round(((30 - remain) / 30) * 100);
@@ -1030,15 +1123,19 @@ function openRewardAdGate(onComplete) {
     },
     onFinished: () => {
       state.adGateState = 'rewarded';
+      AnalyticsService.track('ad_reward_granted', { type: 'rewarded_video' });
     },
     onCanceled: () => {
       state.adGateState = 'canceled';
+      AnalyticsService.track('ad_canceled', { type: 'rewarded_video' });
     },
   }).then(() => {
     closeModal();
+    AnalyticsService.track('ad_gate_completed', { type: 'rewarded_video' });
     onComplete();
-  }).catch(() => {
+  }).catch((error) => {
     closeModal();
+    AnalyticsService.track('ad_failed', { code: error?.message || 'ad_failed' });
     toast('생성이 취소되었습니다.');
   }).finally(() => {
     state.adGateState = 'idle';
@@ -1121,6 +1218,7 @@ function paywallView() {
   document.querySelectorAll('input[name="plan"]').forEach((el) => {
     el.addEventListener('change', () => {
       state.paywallPlan = el.value;
+      AnalyticsService.track('paywall_plan_selected', { plan: state.paywallPlan });
       paywallView();
     });
   });
@@ -1135,18 +1233,21 @@ function paywallView() {
     state.billingState = 'restoring';
     render();
     toast('구매 복원 중...');
+    AnalyticsService.track('purchase_restore_started');
     try {
       const result = await BillingService.restore();
       if (!result.ok) throw new Error('restore_failed');
       state.pay = 'subscribed';
       save();
       runPendingPremiumAction();
+      AnalyticsService.track('purchase_restore_succeeded', { productId: result.productId || 'unknown' });
       toast('구매 복원이 완료되었습니다.');
       state.screen = state.paywallFrom || 'home';
       setActiveNav(state.screen === 'paywall' ? 'home' : state.screen);
       render();
     } catch (error) {
       const code = error?.message || 'restore_failed';
+      AnalyticsService.track('purchase_restore_failed', { code });
       toast(code === 'restore_not_found' ? '복원 가능한 구매 내역이 없습니다.' : '구매 복원에 실패했습니다. 다시 시도해주세요.');
     } finally {
       state.billingState = 'idle';
@@ -1158,18 +1259,21 @@ function paywallView() {
     state.billingState = 'purchasing';
     render();
     toast('결제 처리 중...');
+    AnalyticsService.track('purchase_started', { plan: state.paywallPlan });
     try {
       const result = await BillingService.purchase(state.paywallPlan);
       if (!result.ok) throw new Error('purchase_failed');
       state.pay = 'subscribed';
       save();
       runPendingPremiumAction();
+      AnalyticsService.track('purchase_succeeded', { plan: state.paywallPlan, productId: result.productId || 'unknown' });
       toast(state.paywallPlan === 'yearly' ? '연간 플랜 체험 시작!' : '월간 플랜 구독 시작!');
       state.screen = state.paywallFrom || 'export';
       setActiveNav(state.screen === 'paywall' ? 'home' : state.screen);
       render();
     } catch (error) {
       const code = error?.message || 'purchase_failed';
+      AnalyticsService.track('purchase_failed', { code, plan: state.paywallPlan });
       toast(code === 'billing_sdk_unavailable' ? '결제 SDK를 불러올 수 없습니다. 환경을 확인해주세요.' : '결제에 실패했습니다. 다시 시도해주세요.');
     } finally {
       state.billingState = 'idle';
@@ -1210,12 +1314,16 @@ function attachGlobal() {
 
   window.addEventListener('online', () => {
     appRuntime.isOnline = true;
+    AnalyticsService.track('network_online');
     toast('온라인 연결이 복구되었습니다.');
   });
   window.addEventListener('offline', () => {
     appRuntime.isOnline = false;
+    AnalyticsService.track('network_offline');
     toast('오프라인 상태입니다. 일부 기능이 제한됩니다.');
   });
+
+  AnalyticsService.boot();
 }
 
 function render() {
