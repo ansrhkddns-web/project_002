@@ -61,6 +61,7 @@ const state = {
     status: 'idle', // idle | running | done | canceled
     progress: 0,
     updatedAt: null,
+    activeExportId: null,
   },
   paywallPlan: localStorage.getItem('paywallPlan') || 'yearly',
   paywallFrom: 'home',
@@ -74,7 +75,9 @@ const $ = (s) => document.querySelector(s);
 const fmtDate = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
 let adTimer = null;
 let exportTimer = null;
+let exportAbortSignal = null;
 let cameraFacingMode = 'environment';
+const runtime = { exportArtifacts: {} };
 const LEGAL_URLS = {
   privacy: '',
   terms: '',
@@ -264,6 +267,110 @@ const FileService = {
     link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     return { method: 'download' };
+  },
+};
+
+const RenderService = {
+  sdk() {
+    return window.LoopicRenderSDK || window.RenderSDK || null;
+  },
+  getResolution(resolution) {
+    return resolution === '4k' ? { width: 3840, height: 2160 } : { width: 1920, height: 1080 };
+  },
+  frameDuration(speed) {
+    return ({ slow: 240, normal: 150, fast: 90 }[speed] || 150);
+  },
+  collectFrames({ albumId, range }) {
+    const rows = Object.entries(state.entries)
+      .filter(([k]) => k.startsWith(`${albumId}:`))
+      .sort((a, b) => a[0].localeCompare(b[0]));
+
+    if (!rows.length) return [];
+    if (range === 'all') return rows.map(([, v]) => v);
+    return rows.slice(-Number(range)).map(([, v]) => v);
+  },
+  async renderWithSdk(payload, onProgress) {
+    const sdk = this.sdk();
+    if (!sdk?.renderTimelapse) throw new Error('render_sdk_unavailable');
+    const result = await sdk.renderTimelapse({ ...payload, onProgress });
+    if (!result?.ok || !result?.blob) throw new Error(result?.code || 'render_sdk_failed');
+    return { blob: result.blob, engine: result.engine || 'sdk-ffmpeg' };
+  },
+  async renderWithMediaRecorder(payload, onProgress, abortSignal) {
+    if (!window.MediaRecorder) throw new Error('render_media_recorder_unavailable');
+
+    const { width, height } = this.getResolution(payload.resolution);
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+
+    const fps = 30;
+    const stream = canvas.captureStream(fps);
+    let mimeType = 'video/webm;codecs=vp9';
+    if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm';
+    const recorder = new MediaRecorder(stream, { mimeType });
+    const chunks = [];
+
+    recorder.ondataavailable = (event) => { if (event.data?.size) chunks.push(event.data); };
+
+    const finished = new Promise((resolve, reject) => {
+      recorder.onstop = () => resolve();
+      recorder.onerror = () => reject(new Error('render_recording_failed'));
+    });
+
+    const drawFallbackFrame = (index, total) => {
+      const gradient = ctx.createLinearGradient(0, 0, width, height);
+      gradient.addColorStop(0, '#10242b');
+      gradient.addColorStop(1, '#1d3c46');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, width, height);
+      ctx.fillStyle = 'rgba(255,255,255,0.2)';
+      ctx.font = `bold ${Math.round(width * 0.045)}px sans-serif`;
+      ctx.fillText(`Loop ${index + 1}/${total}`, width * 0.08, height * 0.85);
+    };
+
+    const drawFrame = (entry, index, total) => new Promise((resolve) => {
+      ctx.clearRect(0, 0, width, height);
+      if (entry?.frameDataUrl) {
+        const image = new Image();
+        image.onload = () => {
+          ctx.drawImage(image, 0, 0, width, height);
+          resolve();
+        };
+        image.onerror = () => { drawFallbackFrame(index, total); resolve(); };
+        image.src = entry.frameDataUrl;
+        return;
+      }
+      drawFallbackFrame(index, total);
+      resolve();
+    });
+
+    recorder.start(200);
+    const waitMs = this.frameDuration(payload.speed);
+
+    for (let i = 0; i < payload.frames.length; i += 1) {
+      if (abortSignal?.canceled) {
+        recorder.stop();
+        throw new Error('render_canceled');
+      }
+      await drawFrame(payload.frames[i], i, payload.frames.length);
+      onProgress(Math.min(95, Math.round(((i + 1) / payload.frames.length) * 95)));
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+    }
+
+    recorder.stop();
+    await finished;
+    const blob = new Blob(chunks, { type: mimeType });
+    return { blob, engine: 'media-recorder' };
+  },
+  async renderTimelapse(payload, onProgress, abortSignal) {
+    try {
+      return await this.renderWithSdk(payload, onProgress);
+    } catch (error) {
+      if (error?.message === 'render_canceled') throw error;
+      return this.renderWithMediaRecorder(payload, onProgress, abortSignal);
+    }
   },
 };
 
@@ -487,7 +594,14 @@ function cameraView() {
     const filename = `loopic-${state.activeAlbum}-${fmtDate()}-${Date.now()}.jpg`;
     try {
       await FileService.saveImage(blob, filename);
-      state.entries[entryKey] = { imageUri: filename, updatedAt: new Date().toISOString(), source };
+      const frameDataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error('frame_read_failed'));
+        reader.readAsDataURL(blob);
+      });
+
+      state.entries[entryKey] = { imageUri: filename, frameDataUrl, updatedAt: new Date().toISOString(), source };
       save();
       toast('저장 완료!');
       state.screen = 'home';
@@ -577,50 +691,73 @@ function timelineView() {
 }
 
 
-function startExportGeneration() {
+async function startExportGeneration() {
   if (state.exportJob.status === 'running') return;
   if (exportTimer) clearInterval(exportTimer);
 
-  state.exportJob = { status: 'running', progress: 0, updatedAt: new Date().toISOString() };
+  const frames = RenderService.collectFrames({ albumId: state.activeAlbum, range: state.export.range });
+  if (!frames.length) {
+    toast('내보낼 프레임이 없습니다. 먼저 촬영을 진행해주세요.');
+    return;
+  }
+
+  const exportId = `exp-${Date.now()}`;
+  exportAbortSignal = { canceled: false };
+  state.exportJob = { status: 'running', progress: 0, updatedAt: new Date().toISOString(), activeExportId: exportId };
   render();
 
-  exportTimer = setInterval(() => {
-    const step = Math.floor(Math.random() * 12) + 8;
-    state.exportJob.progress = Math.min(100, state.exportJob.progress + step);
-    state.exportJob.updatedAt = new Date().toISOString();
-
-    if (state.exportJob.progress >= 100) {
-      clearInterval(exportTimer);
-      exportTimer = null;
-      state.exportJob.status = 'done';
-      state.exportHistory.unshift({
-        id: `exp-${Date.now()}`,
-        createdAt: new Date().toISOString(),
-        resolution: state.export.resolution,
-        speed: state.export.speed,
-        range: state.export.range,
-        watermarkRemoved: state.export.removeWatermark,
-      });
-      state.exportHistory = state.exportHistory.slice(0, 8);
-      save();
-      toast(`영상 생성 완료 (${state.export.resolution.toUpperCase()}, ${state.export.speed})`);
+  try {
+    const { blob, engine } = await RenderService.renderTimelapse({
+      frames,
+      resolution: state.export.resolution,
+      speed: state.export.speed,
+      range: state.export.range,
+      removeWatermark: state.export.removeWatermark,
+    }, (progress) => {
+      state.exportJob.progress = progress;
+      state.exportJob.updatedAt = new Date().toISOString();
       render();
-      return;
-    }
+    }, exportAbortSignal);
 
+    if (exportAbortSignal?.canceled) throw new Error('render_canceled');
+
+    const artifactUrl = URL.createObjectURL(blob);
+    runtime.exportArtifacts[exportId] = { videoUrl: artifactUrl, mimeType: blob.type || 'video/webm' };
+
+    state.exportJob.status = 'done';
+    state.exportJob.progress = 100;
+    state.exportJob.updatedAt = new Date().toISOString();
+    state.exportJob.activeExportId = exportId;
+    state.exportHistory.unshift({
+      id: exportId,
+      createdAt: new Date().toISOString(),
+      resolution: state.export.resolution,
+      speed: state.export.speed,
+      range: state.export.range,
+      watermarkRemoved: state.export.removeWatermark,
+      renderEngine: engine,
+    });
+    state.exportHistory = state.exportHistory.slice(0, 8);
+    save();
+    toast(`영상 생성 완료 (${state.export.resolution.toUpperCase()}, ${engine})`);
     render();
-  }, 700);
+  } catch (error) {
+    state.exportJob.status = 'canceled';
+    state.exportJob.updatedAt = new Date().toISOString();
+    if (error?.message === 'render_canceled') {
+      toast('영상 생성이 취소되었습니다.');
+    } else {
+      toast('영상 렌더링에 실패했습니다. 다시 시도해주세요.');
+    }
+    render();
+  } finally {
+    exportAbortSignal = null;
+  }
 }
 
 function cancelExportGeneration() {
-  if (exportTimer) {
-    clearInterval(exportTimer);
-    exportTimer = null;
-  }
-  state.exportJob.status = 'canceled';
-  state.exportJob.updatedAt = new Date().toISOString();
-  toast('영상 생성이 취소되었습니다.');
-  render();
+  if (state.exportJob.status !== 'running') return;
+  if (exportAbortSignal) exportAbortSignal.canceled = true;
 }
 
 function exportView() {
@@ -737,10 +874,48 @@ function exportView() {
     openRewardAdGate(startExportGeneration);
   };
 
+  const latestId = state.exportHistory[0]?.id;
+  const latestArtifact = latestId ? runtime.exportArtifacts[latestId] : null;
+
   $('#cancelGenerate')?.addEventListener('click', cancelExportGeneration);
-  $('#previewResult')?.addEventListener('click', () => toast('미리보기 재생 준비 중입니다.'));
-  $('#saveResult')?.addEventListener('click', () => toast('갤러리에 저장되었습니다.'));
-  $('#shareResult')?.addEventListener('click', () => toast('공유 시트가 열렸습니다.'));
+  $('#previewResult')?.addEventListener('click', () => {
+    if (!latestArtifact?.videoUrl) {
+      toast('미리보기 파일이 없습니다. 다시 생성해주세요.');
+      return;
+    }
+    openModal(`<h3>영상 미리보기</h3><video controls autoplay style="width:100%;border-radius:12px;background:#000" src="${latestArtifact.videoUrl}"></video><div class="btn-row"><button class="btn primary" id="closePreview">닫기</button></div>`);
+    $('#closePreview').onclick = closeModal;
+  });
+  $('#saveResult')?.addEventListener('click', () => {
+    if (!latestArtifact?.videoUrl) {
+      toast('저장할 파일이 없습니다. 다시 생성해주세요.');
+      return;
+    }
+    const link = document.createElement('a');
+    link.href = latestArtifact.videoUrl;
+    link.download = `loopic-${Date.now()}.webm`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    toast('렌더링 파일이 저장되었습니다.');
+  });
+  $('#shareResult')?.addEventListener('click', async () => {
+    if (!latestArtifact?.videoUrl) {
+      toast('공유할 파일이 없습니다. 다시 생성해주세요.');
+      return;
+    }
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: 'Loopic Timelapse', url: latestArtifact.videoUrl });
+        toast('공유 완료!');
+        return;
+      }
+      await navigator.clipboard?.writeText(latestArtifact.videoUrl);
+      toast('공유 링크를 클립보드에 복사했어요.');
+    } catch {
+      toast('공유에 실패했습니다. 다시 시도해주세요.');
+    }
+  });
 }
 
 function openRewardAdGate(onComplete) {
