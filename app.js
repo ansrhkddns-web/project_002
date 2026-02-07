@@ -79,8 +79,8 @@ let exportAbortSignal = null;
 let cameraFacingMode = 'environment';
 const runtime = { exportArtifacts: {} };
 const LEGAL_URLS = {
-  privacy: '',
-  terms: '',
+  privacy: './legal-links.html#privacy',
+  terms: './legal-links.html#terms',
 };
 
 const AdsService = {
@@ -1396,20 +1396,13 @@ function paywallView() {
     }
   };
   $('#privacyBtn').onclick = () => {
-    if (LEGAL_URLS.privacy) {
-      window.open(LEGAL_URLS.privacy, '_blank', 'noopener');
-      return;
-    }
-    openModal('<h3>Privacy Policy</h3><p style="color:var(--muted)">개인정보 처리방침 초안입니다. 실제 배포 시 정식 문서 URL로 연결하세요.</p><div class="btn-row"><button class="btn primary" id="closeLegal">닫기</button></div>');
+    window.open(LEGAL_URLS.privacy, '_blank', 'noopener');
+    AnalyticsService.track('policy_link_opened', { type: 'privacy', url: LEGAL_URLS.privacy });
   };
   $('#termsBtn').onclick = () => {
-    if (LEGAL_URLS.terms) {
-      window.open(LEGAL_URLS.terms, '_blank', 'noopener');
-      return;
-    }
-    openModal('<h3>Terms of Service</h3><p style="color:var(--muted)">이용약관 초안입니다. 실제 배포 시 정식 문서 URL로 연결하세요.</p><div class="btn-row"><button class="btn primary" id="closeLegal">닫기</button></div>');
+    window.open(LEGAL_URLS.terms, '_blank', 'noopener');
+    AnalyticsService.track('policy_link_opened', { type: 'terms', url: LEGAL_URLS.terms });
   };
-  $('#modal').addEventListener('click', (e) => { if (e.target && e.target.id === 'closeLegal') closeModal(); }, { once: true });
 }
 
 function setActiveNav(screen) {
