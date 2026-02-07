@@ -247,26 +247,52 @@ const CameraService = {
 
 const FileService = {
   async saveImage(blob, filename) {
-    if (window.showSaveFilePicker) {
-      const handle = await window.showSaveFilePicker({
-        suggestedName: filename,
-        types: [{ description: 'JPEG Image', accept: { 'image/jpeg': ['.jpg', '.jpeg'] } }],
-      });
-      const writable = await handle.createWritable();
-      await writable.write(blob);
-      await writable.close();
-      return { method: 'file-system-access' };
-    }
+    await StorageService.assertWritable(blob.size || 0);
 
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-    return { method: 'download' };
+    try {
+      if (window.showSaveFilePicker) {
+        const handle = await window.showSaveFilePicker({
+          suggestedName: filename,
+          types: [{ description: 'JPEG Image', accept: { 'image/jpeg': ['.jpg', '.jpeg'] } }],
+        });
+        const writable = await handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        return { method: 'file-system-access' };
+      }
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      return { method: 'download' };
+    } catch (error) {
+      if (isQuotaError(error)) throw new Error('storage_full');
+      if (error?.name === 'AbortError') throw new Error('save_canceled');
+      throw error;
+    }
+  },
+};
+
+const StorageService = {
+  async estimate() {
+    if (!navigator.storage?.estimate) return null;
+    try {
+      return await navigator.storage.estimate();
+    } catch {
+      return null;
+    }
+  },
+  async assertWritable(requiredBytes = 0) {
+    const estimate = await this.estimate();
+    if (!estimate || !estimate.quota) return;
+    const available = Math.max(0, estimate.quota - (estimate.usage || 0));
+    const threshold = Math.max(requiredBytes * 1.25, 8 * 1024 * 1024);
+    if (available < threshold) throw new Error('storage_full');
   },
 };
 
@@ -346,6 +372,7 @@ const RenderService = {
       resolve();
     });
 
+    await StorageService.assertWritable(12 * 1024 * 1024);
     recorder.start(200);
     const waitMs = this.frameDuration(payload.speed);
 
@@ -362,6 +389,7 @@ const RenderService = {
     recorder.stop();
     await finished;
     const blob = new Blob(chunks, { type: mimeType });
+    await StorageService.assertWritable(blob.size || 0);
     return { blob, engine: 'media-recorder' };
   },
   async renderTimelapse(payload, onProgress, abortSignal) {
@@ -374,18 +402,24 @@ const RenderService = {
   },
 };
 
-function save() {
-  localStorage.setItem('lang', state.lang);
-  localStorage.setItem('onboardingCompleted', String(state.onboardingCompleted));
-  localStorage.setItem('silhouetteOpacity', String(state.silhouetteOpacity));
-  localStorage.setItem('reminderTime', state.reminderTime);
-  localStorage.setItem('auth', state.auth);
-  localStorage.setItem('pay', state.pay);
-  localStorage.setItem('albums', JSON.stringify(state.albums));
-  localStorage.setItem('activeAlbum', state.activeAlbum);
-  localStorage.setItem('entries', JSON.stringify(state.entries));
-  localStorage.setItem('paywallPlan', state.paywallPlan);
-  localStorage.setItem('exportHistory', JSON.stringify(state.exportHistory));
+const appRuntime = {
+  isOnline: navigator.onLine,
+  lastToastAt: {},
+};
+
+function isQuotaError(error) {
+  if (!error) return false;
+  return error.name === 'QuotaExceededError' || error.code === 22 || error.code === 1014;
+}
+
+function mapAppError(error) {
+  const code = error?.message || '';
+  if (!appRuntime.isOnline) return 'offline';
+  if (code === 'storage_full') return 'storage_full';
+  if (code === 'render_media_recorder_unavailable') return 'render_unsupported';
+  if (code === 'render_recording_failed') return 'render_failed';
+  if (code === 'save_canceled') return 'save_canceled';
+  return 'unknown';
 }
 
 function toast(msg) {
@@ -393,6 +427,35 @@ function toast(msg) {
   t.textContent = msg;
   t.classList.remove('hidden');
   setTimeout(() => t.classList.add('hidden'), 1800);
+}
+
+function toastOnce(key, msg, coolDownMs = 2200) {
+  const now = Date.now();
+  if (now - (appRuntime.lastToastAt[key] || 0) < coolDownMs) return;
+  appRuntime.lastToastAt[key] = now;
+  toast(msg);
+}
+
+function save() {
+  try {
+    localStorage.setItem('lang', state.lang);
+    localStorage.setItem('onboardingCompleted', String(state.onboardingCompleted));
+    localStorage.setItem('silhouetteOpacity', String(state.silhouetteOpacity));
+    localStorage.setItem('reminderTime', state.reminderTime);
+    localStorage.setItem('auth', state.auth);
+    localStorage.setItem('pay', state.pay);
+    localStorage.setItem('albums', JSON.stringify(state.albums));
+    localStorage.setItem('activeAlbum', state.activeAlbum);
+    localStorage.setItem('entries', JSON.stringify(state.entries));
+    localStorage.setItem('paywallPlan', state.paywallPlan);
+    localStorage.setItem('exportHistory', JSON.stringify(state.exportHistory));
+  } catch (error) {
+    if (isQuotaError(error)) {
+      toastOnce('storage_full', '저장 공간이 부족합니다. 불필요한 파일을 정리한 뒤 다시 시도해주세요.');
+      return;
+    }
+    throw error;
+  }
 }
 
 function openModal(html) { $('#modal').innerHTML = html; $('#modalBackdrop').classList.remove('hidden'); }
@@ -607,8 +670,17 @@ function cameraView() {
       state.screen = 'home';
       setActiveNav('home');
       render();
-    } catch {
-      toast('파일 저장에 실패했습니다. 다시 시도해주세요.');
+    } catch (error) {
+      const type = mapAppError(error);
+      if (type === 'offline') {
+        toast('오프라인 상태에서는 파일 저장이 제한될 수 있습니다. 네트워크를 확인해주세요.');
+      } else if (type === 'storage_full') {
+        toast('저장 공간이 부족해 파일을 저장할 수 없습니다.');
+      } else if (type === 'save_canceled') {
+        toast('파일 저장이 취소되었습니다.');
+      } else {
+        toast('파일 저장에 실패했습니다. 다시 시도해주세요.');
+      }
     }
   };
 
@@ -747,7 +819,16 @@ async function startExportGeneration() {
     if (error?.message === 'render_canceled') {
       toast('영상 생성이 취소되었습니다.');
     } else {
-      toast('영상 렌더링에 실패했습니다. 다시 시도해주세요.');
+      const type = mapAppError(error);
+      if (type === 'offline') {
+        toast('오프라인 상태에서는 렌더링 결과를 업로드할 수 없습니다. 네트워크를 확인해주세요.');
+      } else if (type === 'storage_full') {
+        toast('저장 공간 부족으로 렌더링을 완료할 수 없습니다.');
+      } else if (type === 'render_unsupported') {
+        toast('이 브라우저는 렌더링 fallback(MediaRecorder)을 지원하지 않습니다.');
+      } else {
+        toast('영상 렌더링에 실패했습니다. 다시 시도해주세요.');
+      }
     }
     render();
   } finally {
@@ -904,13 +985,21 @@ function exportView() {
       toast('공유할 파일이 없습니다. 다시 생성해주세요.');
       return;
     }
+    if (!appRuntime.isOnline) {
+      toast('오프라인 상태에서는 외부 공유가 제한됩니다.');
+      return;
+    }
     try {
       if (navigator.share) {
         await navigator.share({ title: 'Loopic Timelapse', url: latestArtifact.videoUrl });
         toast('공유 완료!');
         return;
       }
-      await navigator.clipboard?.writeText(latestArtifact.videoUrl);
+      if (!navigator.clipboard?.writeText) {
+        toast('이 환경에서는 공유 링크 복사를 지원하지 않습니다.');
+        return;
+      }
+      await navigator.clipboard.writeText(latestArtifact.videoUrl);
       toast('공유 링크를 클립보드에 복사했어요.');
     } catch {
       toast('공유에 실패했습니다. 다시 시도해주세요.');
@@ -1117,6 +1206,15 @@ function attachGlobal() {
       setActiveNav(state.screen);
       render();
     };
+  });
+
+  window.addEventListener('online', () => {
+    appRuntime.isOnline = true;
+    toast('온라인 연결이 복구되었습니다.');
+  });
+  window.addEventListener('offline', () => {
+    appRuntime.isOnline = false;
+    toast('오프라인 상태입니다. 일부 기능이 제한됩니다.');
   });
 }
 

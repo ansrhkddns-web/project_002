@@ -18,12 +18,12 @@
 - 카메라 캡처 UI 시네마틱 오버레이/컨트롤로 디자인 개선
 - BillingService 실제 결제/복원 SDK 연결(PaymentRequest + 네이티브 SDK 브리지)
 - 실제 영상 렌더링 파이프라인(RenderService: SDK FFmpeg 브리지 + MediaRecorder fallback) 연결
+- 에러/오프라인/저장공간 부족 케이스 상세 처리(offline listener, storage guard, 에러 매핑)
 
 ## 🔄 남은 작업
 1. AdsService를 실제 광고 SDK 콜백으로 교체
-2. 에러/오프라인/저장공간 부족 케이스 상세 처리
-3. 분석 이벤트 수집(D1/D3/D7, 결제 퍼널, 광고 퍼널)
-4. 정책 문서 URL(Privacy/Terms) 실제 운영 링크 입력
+2. 분석 이벤트 수집(D1/D3/D7, 결제 퍼널, 광고 퍼널)
+3. 정책 문서 URL(Privacy/Terms) 실제 운영 링크 입력
 
 ## ▶ 다음 순차 작업 제안
-1) AdsService 실제 SDK 연결 → 2) 에러/오프라인 케이스 보강 → 3) 분석 이벤트 연결
+1) AdsService 실제 SDK 연결 → 2) 분석 이벤트 연결 → 3) 운영 정책 링크 적용
