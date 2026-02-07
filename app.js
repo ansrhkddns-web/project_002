@@ -123,11 +123,38 @@ const SDK_KEYS_JWS_PUBLIC_JWK = {
 const KeyRotationService = {
   cacheKey: 'sdkKeyBundleCache',
   tokenKey: 'sdkKeyAccessToken',
+  monitorKey: 'sdkKeyMonitoring',
   bundle: null,
   loadedAt: 0,
   source: 'default',
   signatureKid: 'unverified',
   verifyKeyPromise: null,
+  monitor() {
+    try {
+      const raw = localStorage.getItem(this.monitorKey);
+      return raw ? JSON.parse(raw) : { attempts: [] };
+    } catch {
+      return { attempts: [] };
+    }
+  },
+  saveMonitor(payload) {
+    try {
+      localStorage.setItem(this.monitorKey, JSON.stringify(payload));
+    } catch {
+      // monitoring must stay non-blocking
+    }
+  },
+  recordAttempt(entry) {
+    const now = new Date().toISOString();
+    const monitor = this.monitor();
+    const attempts = monitor.attempts || [];
+    attempts.push({ at: now, ...entry });
+    this.saveMonitor({
+      attempts: attempts.slice(-240),
+      lastSuccessAt: entry.status === 'success' ? now : monitor.lastSuccessAt,
+      lastFailureAt: entry.status === 'failure' ? now : monitor.lastFailureAt,
+    });
+  },
   token() {
     return window.__SDK_KEY_TOKEN || localStorage.getItem(this.tokenKey) || '';
   },
@@ -243,9 +270,14 @@ const KeyRotationService = {
           signatureKid: this.signatureKid,
           bundle: this.bundle,
         }));
+        this.recordAttempt({ status: 'success', source: this.source, signatureKid: this.signatureKid });
         return this.bundle;
-      } catch {
-        // try next source
+      } catch (error) {
+        this.recordAttempt({
+          status: 'failure',
+          source: source.name || 'source',
+          code: error?.message || 'sdk_key_fetch_failed',
+        });
       }
     }
 

@@ -29,9 +29,10 @@
 - UX 통일 업그레이드 준비 문서화(ux_consistency_upgrade_plan.md)
 - 키 번들 JWS(RS256) 검증 로직 추가(app.js/ops-dashboard)
 - 서버측 접근 제어 고도화(server.js: Bearer + Origin allowlist + rate-limit + direct access 차단)
+- 운영 대시보드 경보 규칙 연계(만료 임박 + 서명 검증 실패율 1h)
 
 ## 🔄 남은 작업
 - (현재 기준 핵심 기능 작업 완료, 운영 고도화 단계)
 
 ## ▶ 다음 순차 작업 제안
-1) 알림/모니터링 규칙(만료 임박, 서명 검증 실패율) 운영 대시보드 연계
+1) 외부 알림 채널 연동(슬랙/메일/PagerDuty) 및 임계치 운영 튜닝

@@ -31,3 +31,8 @@ location.reload();
 - 설정(언어/리마인드/Google 연결 상태)
 - SDK 키 번들 JWS(RS256) 검증 및 서명 키(kid) 추적
 - `/api/sdk-keys` Bearer 인증 + Origin 허용목록 + 간단 rate-limit 적용
+
+
+## 운영 대시보드 모니터링 규칙
+- 만료 임박 경보: ads/billing/render `expiresAt`가 14일 이내면 `warning`, 이미 만료면 `critical`로 표기.
+- 서명 검증 실패율(1h): 최근 1시간 `sdkKeyMonitoring` 시도 기준 실패율 5% 이상 `warn`, 20% 이상 `bad`.

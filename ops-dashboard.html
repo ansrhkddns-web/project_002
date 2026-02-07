@@ -32,6 +32,19 @@
         <article class="aux-card"><div class="aux-label">SDK Key Bundle</div><div id="sdkBundleStatus" class="aux-value mono">-</div><p class="aux-sub" id="sdkBundleSource" style="margin-top:6px">source: -</p></article>
       </section>
 
+      <section class="aux-grid">
+        <article class="aux-card">
+          <div class="aux-label">Expiry Alert Window</div>
+          <div id="expiryAlertStatus" class="aux-value">-</div>
+          <p class="aux-sub" id="expiryAlertDetail" style="margin-top:6px">-</p>
+        </article>
+        <article class="aux-card">
+          <div class="aux-label">Signature Verification Failure Rate (1h)</div>
+          <div id="sigFailureRate" class="aux-value">-</div>
+          <p class="aux-sub" id="sigFailureDetail" style="margin-top:6px">-</p>
+        </article>
+      </section>
+
       <section class="aux-card">
         <div class="aux-label">Recent Funnel Events (Top 20)</div>
         <table class="aux-table">
@@ -77,6 +90,52 @@
         return bytes;
       };
       const decodeJson = (value) => JSON.parse(new TextDecoder().decode(decodeBase64Url(value)));
+
+
+      function updateExpiryMonitoring(cachedBundle) {
+        const sections = ['ads', 'billing', 'render'];
+        const warnInMs = 14 * 24 * 60 * 60 * 1000;
+        const now = Date.now();
+        const expiring = [];
+        sections.forEach((name) => {
+          const expiry = cachedBundle?.bundle?.[name]?.expiresAt;
+          if (!expiry) return;
+          const diff = new Date(expiry).getTime() - now;
+          if (Number.isFinite(diff) && diff <= warnInMs) {
+            expiring.push({ name, diffDays: Math.ceil(diff / (24 * 60 * 60 * 1000)), expiry });
+          }
+        });
+
+        if (!expiring.length) {
+          statusEl('expiryAlertStatus', 'stable', 'ok');
+          document.getElementById('expiryAlertDetail').textContent = '14일 이내 만료 대상 없음';
+          return;
+        }
+
+        const critical = expiring.some((v) => v.diffDays <= 0);
+        statusEl('expiryAlertStatus', critical ? 'critical' : 'warning', critical ? 'bad' : 'warn');
+        document.getElementById('expiryAlertDetail').textContent = expiring
+          .map((v) => `${v.name}:${v.diffDays}d (${new Date(v.expiry).toLocaleDateString()})`)
+          .join(' | ');
+      }
+
+      function updateSignatureFailureMonitoring() {
+        const monitor = parseJSON('sdkKeyMonitoring', { attempts: [] });
+        const attempts = Array.isArray(monitor?.attempts) ? monitor.attempts : [];
+        const oneHourAgo = Date.now() - (60 * 60 * 1000);
+        const recent = attempts.filter((a) => new Date(a.at).getTime() >= oneHourAgo);
+        const total = recent.length;
+        const failures = recent.filter((a) => a.status === 'failure').length;
+        const rate = total ? (failures / total) * 100 : 0;
+
+        let cls = 'ok';
+        if (rate >= 20) cls = 'bad';
+        else if (rate >= 5) cls = 'warn';
+
+        statusEl('sigFailureRate', `${rate.toFixed(1)}%`, cls);
+        const lastFail = recent.find((a) => a.status === 'failure');
+        document.getElementById('sigFailureDetail').textContent = `samples:${total} failures:${failures} last:${lastFail?.code || '-'}`;
+      }
 
       async function verifySignedEnvelope(envelope) {
         const verifyKey = await crypto.subtle.importKey('jwk', SDK_KEYS_JWS_PUBLIC_JWK, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['verify']);
@@ -128,6 +187,8 @@
         statusEl('billingSdkStatus', window.LoopicBillingSDK || window.BillingSDK ? 'connected' : 'not detected', window.LoopicBillingSDK || window.BillingSDK ? 'ok':'warn');
         statusEl('renderSdkStatus', window.LoopicRenderSDK || window.RenderSDK ? 'connected' : 'not detected', window.LoopicRenderSDK || window.RenderSDK ? 'ok':'warn');
         document.getElementById('sdkBundleSource').textContent = `source: ${cachedBundle?.source || 'unknown'} | kid: ${cachedBundle?.signatureKid || '-'} | loadedAt: ${cachedBundle?.at ? new Date(cachedBundle.at).toLocaleString() : '-'}`;
+        updateExpiryMonitoring(cachedBundle);
+        updateSignatureFailureMonitoring();
 
         const rows = events.filter((e) => funnelNames.has(e.eventName)).slice(-20).reverse();
         const tbody = document.getElementById('eventRows');

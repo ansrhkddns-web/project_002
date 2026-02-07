@@ -2,8 +2,8 @@
 
 ## 1) 기능/운영 안정화 (즉시)
 - [ ] **Secrets Proxy 실서버 연동**: `/api/sdk-keys`를 실제 Secrets Manager 백엔드와 연결.
-- [ ] **키 번들 서명 검증(JWS)**: 클라이언트에서 `sdk_keys.json` 무결성 확인.
-- [ ] **키 만료 알림**: `expiresAt` 임박 시 운영 알림(슬랙/메일).
+- [x] **키 번들 서명 검증(JWS)**: 클라이언트에서 RS256/JWK 기반 무결성 검증 적용 완료.
+- [ ] **키 만료 알림**: Ops Dashboard에서 14일 임박 경고 표시까지 완료, 슬랙/메일 연동은 미완.
 - [ ] **광고 SDK 실키 검증**: Android/iOS 실제 ad unit으로 reward callback 검증.
 - [ ] **결제 복원 실계정 검증**: sandbox 환경에서 purchase/restore end-to-end 확인.
 
@@ -20,7 +20,8 @@
 - [ ] **경보 규칙**
   - `purchase_failed` 비율 급등
   - `ad_failed` 급등
-  - `sdk_key_bundle_load_failed` 발생
+  - `sdk_key_bundle_load_failed` 및 서명 검증 실패율(1h)
+  - 현재: Ops Dashboard에서 실패율/임박 만료 시각화, 외부 알림 채널 연동 필요
 - [ ] **릴리즈 체계**: key bundle 버전 롤백 절차 문서화.
 
 ## 4) 보안/정책
