@@ -47,7 +47,7 @@
         <article class="card"><div class="label">Ads SDK Bridge</div><div id="adsSdkStatus" class="value">-</div></article>
         <article class="card"><div class="label">Billing SDK Bridge</div><div id="billingSdkStatus" class="value">-</div></article>
         <article class="card"><div class="label">Render SDK Bridge</div><div id="renderSdkStatus" class="value">-</div></article>
-        <article class="card"><div class="label">Ads Config Key</div><div id="adsConfigStatus" class="value mono">-</div></article>
+        <article class="card"><div class="label">SDK Key Bundle</div><div id="sdkBundleStatus" class="value mono">-</div></article>
       </section>
 
       <section class="card">
@@ -64,7 +64,7 @@
         'paywall_viewed','paywall_plan_selected','purchase_started','purchase_succeeded','purchase_failed',
         'purchase_restore_started','purchase_restore_succeeded','purchase_restore_failed',
         'ad_gate_opened','ad_started','ad_reward_granted','ad_canceled','ad_failed','ad_gate_completed',
-        'retention_d1','retention_d3','retention_d7','export_generation_started','export_generation_succeeded','export_generation_failed'
+        'retention_d1','retention_d3','retention_d7','export_generation_started','export_generation_succeeded','export_generation_failed','sdk_key_bundle_loaded','sdk_key_bundle_load_failed'
       ]);
 
       const parseJSON = (key, fallback) => {
@@ -78,16 +78,20 @@
         el.className = `value ${cls}`.trim();
       };
 
-      async function loadAdsConfigStatus() {
+      async function loadKeyBundleStatus() {
         try {
-          const res = await fetch('./ads_config.json', { cache: 'no-store' });
+          const res = await fetch('./sdk_keys.json', { cache: 'no-store' });
           if (!res.ok) throw new Error();
           const cfg = await res.json();
-          const keys = cfg.rewardedAdUnits || {};
-          const summary = [keys.android, keys.ios, keys.web].filter(Boolean).map((v) => v.slice(0, 18) + '…').join(' | ');
-          statusEl('adsConfigStatus', summary || 'configured', 'ok');
+          const adsVer = cfg?.ads?.version || 'n/a';
+          const billingVer = cfg?.billing?.version || 'n/a';
+          const renderVer = cfg?.render?.version || 'n/a';
+          const expired = [cfg?.ads?.expiresAt, cfg?.billing?.expiresAt, cfg?.render?.expiresAt]
+            .filter(Boolean)
+            .some((d) => new Date(d).getTime() <= Date.now());
+          statusEl('sdkBundleStatus', `ads:${adsVer} bill:${billingVer} render:${renderVer}`, expired ? 'warn' : 'ok');
         } catch {
-          statusEl('adsConfigStatus', 'ads_config.json unavailable', 'bad');
+          statusEl('sdkBundleStatus', 'sdk_keys.json unavailable', 'bad');
         }
       }
 
@@ -118,7 +122,7 @@
 
       document.getElementById('refreshBtn').addEventListener('click', async () => {
         render();
-        await loadAdsConfigStatus();
+        await loadKeyBundleStatus();
       });
       document.getElementById('clearEventsBtn').addEventListener('click', () => {
         localStorage.removeItem('analyticsEvents');
@@ -126,7 +130,7 @@
       });
 
       render();
-      loadAdsConfigStatus();
+      loadKeyBundleStatus();
     </script>
   </body>
 </html>

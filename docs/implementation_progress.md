@@ -23,9 +23,10 @@
 - AdsService 실제 광고 SDK 콜백 연결(외부 ads_config.json 키 로딩)
 - 정책 문서 URL 별도 관리 페이지 연결(legal-links.html)
 - SDK/분석 운영 모니터링 대시보드 연결(ops-dashboard.html)
+- SDK 키 번들 자동 로테이션/자동 리프레시(sdk_keys.json + KeyRotationService)
 
 ## 🔄 남은 작업
 - (현재 기준 핵심 기능 작업 완료, 운영 고도화 단계)
 
 ## ▶ 다음 순차 작업 제안
-1) Ads/Billing/Render SDK 실운영 키 로테이션 자동화
+1) 실운영 키 배포 파이프라인(CDN/Secrets Manager) 연동

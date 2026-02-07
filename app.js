@@ -83,6 +83,101 @@ const LEGAL_URLS = {
   terms: './legal-links.html#terms',
 };
 
+const DEFAULT_SDK_KEY_BUNDLE = {
+  rotations: { autoRefreshMs: 60 * 60 * 1000 },
+  ads: {
+    version: 'default-2026-01',
+    expiresAt: '2027-01-01T00:00:00.000Z',
+    appId: 'loopic-dev-app',
+    rewardedAdUnits: {
+      android: 'ca-app-pub-3940256099942544/5224354917',
+      ios: 'ca-app-pub-3940256099942544/1712485313',
+      web: 'test-web-rewarded-unit',
+      default: 'test-web-rewarded-unit',
+    },
+  },
+  billing: {
+    version: 'default-2026-01',
+    expiresAt: '2027-01-01T00:00:00.000Z',
+    products: {
+      monthly: 'loopic.monthly',
+      yearly: 'loopic.yearly.trial',
+    },
+  },
+  render: {
+    version: 'default-2026-01',
+    expiresAt: '2027-01-01T00:00:00.000Z',
+    sdkNamespace: 'LoopicRenderSDK',
+  },
+};
+
+const KeyRotationService = {
+  cacheKey: 'sdkKeyBundleCache',
+  bundle: null,
+  loadedAt: 0,
+  async loadBundle({ force = false } = {}) {
+    if (this.bundle && !force) return this.bundle;
+
+    try {
+      const res = await fetch('./sdk_keys.json', { cache: 'no-store' });
+      if (!res.ok) throw new Error('sdk_key_fetch_failed');
+      const remote = await res.json();
+      this.bundle = {
+        ...DEFAULT_SDK_KEY_BUNDLE,
+        ...remote,
+        ads: { ...DEFAULT_SDK_KEY_BUNDLE.ads, ...(remote.ads || {}) },
+        billing: { ...DEFAULT_SDK_KEY_BUNDLE.billing, ...(remote.billing || {}) },
+        render: { ...DEFAULT_SDK_KEY_BUNDLE.render, ...(remote.render || {}) },
+      };
+      this.loadedAt = Date.now();
+      localStorage.setItem(this.cacheKey, JSON.stringify({ at: this.loadedAt, bundle: this.bundle }));
+      return this.bundle;
+    } catch {
+      try {
+        const raw = localStorage.getItem(this.cacheKey);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          this.bundle = parsed.bundle;
+          this.loadedAt = parsed.at || Date.now();
+          return this.bundle;
+        }
+      } catch {
+        // noop
+      }
+      this.bundle = DEFAULT_SDK_KEY_BUNDLE;
+      this.loadedAt = Date.now();
+      return this.bundle;
+    }
+  },
+  cachedBundle() {
+    return this.bundle || DEFAULT_SDK_KEY_BUNDLE;
+  },
+  async section(name) {
+    const bundle = await this.loadBundle();
+    return bundle?.[name] || DEFAULT_SDK_KEY_BUNDLE[name] || {};
+  },
+  isExpired(sectionName) {
+    const section = this.cachedBundle()?.[sectionName];
+    if (!section?.expiresAt) return false;
+    return new Date(section.expiresAt).getTime() <= Date.now();
+  },
+  versions() {
+    const bundle = this.cachedBundle();
+    return {
+      ads: bundle?.ads?.version || 'unknown',
+      billing: bundle?.billing?.version || 'unknown',
+      render: bundle?.render?.version || 'unknown',
+    };
+  },
+  async startAutoRefresh() {
+    const bundle = await this.loadBundle();
+    const interval = Math.max(5 * 60 * 1000, bundle?.rotations?.autoRefreshMs || 60 * 60 * 1000);
+    setInterval(() => {
+      this.loadBundle({ force: true }).catch(() => {});
+    }, interval);
+  },
+};
+
 const AdsService = {
   config: null,
   initialized: false,
@@ -92,12 +187,17 @@ const AdsService = {
   async loadConfig() {
     if (this.config) return this.config;
     try {
-      const res = await fetch('./ads_config.json', { cache: 'no-store' });
-      if (!res.ok) throw new Error('ads_config_fetch_failed');
-      this.config = await res.json();
+      this.config = await KeyRotationService.section('ads');
       return this.config;
     } catch {
-      throw new Error('ads_config_unavailable');
+      try {
+        const res = await fetch('./ads_config.json', { cache: 'no-store' });
+        if (!res.ok) throw new Error('ads_config_fetch_failed');
+        this.config = await res.json();
+        return this.config;
+      } catch {
+        throw new Error('ads_config_unavailable');
+      }
     }
   },
   platformKey() {
@@ -231,8 +331,9 @@ const BillingService = {
   sdk() {
     return window.LoopicBillingSDK || window.BillingSDK || null;
   },
-  productForPlan(plan) {
-    return plan === 'yearly' ? 'loopic.yearly.trial' : 'loopic.monthly';
+  async productForPlan(plan) {
+    const billingKeys = await KeyRotationService.section('billing');
+    return billingKeys?.products?.[plan] || (plan === 'yearly' ? 'loopic.yearly.trial' : 'loopic.monthly');
   },
   persistSubscription(meta) {
     localStorage.setItem('billingLastSubscription', JSON.stringify({
@@ -258,7 +359,7 @@ const BillingService = {
     };
   },
   async purchase(plan) {
-    const productId = this.productForPlan(plan);
+    const productId = await this.productForPlan(plan);
     const sdk = this.sdk();
 
     if (sdk?.purchase) {
@@ -406,7 +507,9 @@ const StorageService = {
 
 const RenderService = {
   sdk() {
-    return window.LoopicRenderSDK || window.RenderSDK || null;
+    const renderKey = KeyRotationService.cachedBundle()?.render || {};
+    const preferred = renderKey.sdkNamespace || 'LoopicRenderSDK';
+    return window[preferred] || window.LoopicRenderSDK || window.RenderSDK || null;
   },
   getResolution(resolution) {
     return resolution === '4k' ? { width: 3840, height: 2160 } : { width: 1920, height: 1080 };
@@ -1433,6 +1536,12 @@ function attachGlobal() {
     toast('오프라인 상태입니다. 일부 기능이 제한됩니다.');
   });
 
+  KeyRotationService.loadBundle().then(() => {
+    AnalyticsService.track('sdk_key_bundle_loaded', KeyRotationService.versions());
+  }).catch(() => {
+    AnalyticsService.track('sdk_key_bundle_load_failed');
+  });
+  KeyRotationService.startAutoRefresh().catch(() => {});
   AnalyticsService.boot();
 }
 
