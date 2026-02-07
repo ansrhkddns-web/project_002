@@ -1,43 +1,5 @@
 {
-  "rotations": {
-    "autoRefreshMs": 3600000
-  },
-  "ads": {
-    "version": "2026.02.r1",
-    "expiresAt": "2027-01-01T00:00:00.000Z",
-    "appId": "loopic-dev-app",
-    "rewardedAdUnits": {
-      "android": "ca-app-pub-3940256099942544/5224354917",
-      "ios": "ca-app-pub-3940256099942544/1712485313",
-      "web": "test-web-rewarded-unit",
-      "default": "test-web-rewarded-unit"
-    }
-  },
-  "billing": {
-    "version": "2026.02.r1",
-    "expiresAt": "2027-01-01T00:00:00.000Z",
-    "products": {
-      "monthly": "loopic.monthly",
-      "yearly": "loopic.yearly.trial"
-    }
-  },
-  "render": {
-    "version": "2026.02.r1",
-    "expiresAt": "2027-01-01T00:00:00.000Z",
-    "sdkNamespace": "LoopicRenderSDK"
-  },
-  "delivery": {
-    "sources": [
-      {
-        "name": "cdn",
-        "url": "./sdk_keys.json",
-        "auth": "none"
-      },
-      {
-        "name": "secrets-proxy",
-        "url": "/api/sdk-keys",
-        "auth": "bearer_optional"
-      }
-    ]
-  }
+  "protected": "eyJhbGciOiJSUzI1NiIsImtpZCI6Imxvb3BpYy1kZXYtcnMyNTYtdjEiLCJ0eXAiOiJKV1QifQ",
+  "payload": "eyJpc3MiOiJsb29waWMtc2VjcmV0cy1wcm94eSIsImF1ZCI6Imxvb3BpYy1jbGllbnQiLCJpYXQiOjE3NzA0Mjc0OTQsIm5iZiI6MTc3MDQyNzQ2NCwiZXhwIjoxNzgwNzk1NDk0LCJidW5kbGUiOnsicm90YXRpb25zIjp7ImF1dG9SZWZyZXNoTXMiOjM2MDAwMDB9LCJhZHMiOnsidmVyc2lvbiI6IjIwMjYuMDMucjIiLCJleHBpcmVzQXQiOiIyMDI3LTAxLTAxVDAwOjAwOjAwLjAwMFoiLCJhcHBJZCI6Imxvb3BpYy1kZXYtYXBwIiwicmV3YXJkZWRBZFVuaXRzIjp7ImFuZHJvaWQiOiJjYS1hcHAtcHViLTM5NDAyNTYwOTk5NDI1NDQvNTIyNDM1NDkxNyIsImlvcyI6ImNhLWFwcC1wdWItMzk0MDI1NjA5OTk0MjU0NC8xNzEyNDg1MzEzIiwid2ViIjoidGVzdC13ZWItcmV3YXJkZWQtdW5pdCIsImRlZmF1bHQiOiJ0ZXN0LXdlYi1yZXdhcmRlZC11bml0In19LCJiaWxsaW5nIjp7InZlcnNpb24iOiIyMDI2LjAzLnIyIiwiZXhwaXJlc0F0IjoiMjAyNy0wMS0wMVQwMDowMDowMC4wMDBaIiwicHJvZHVjdHMiOnsibW9udGhseSI6Imxvb3BpYy5tb250aGx5IiwieWVhcmx5IjoibG9vcGljLnllYXJseS50cmlhbCJ9fSwicmVuZGVyIjp7InZlcnNpb24iOiIyMDI2LjAzLnIyIiwiZXhwaXJlc0F0IjoiMjAyNy0wMS0wMVQwMDowMDowMC4wMDBaIiwic2RrTmFtZXNwYWNlIjoiTG9vcGljUmVuZGVyU0RLIn0sImRlbGl2ZXJ5Ijp7InNvdXJjZXMiOlt7Im5hbWUiOiJzZWNyZXRzLXByb3h5IiwidXJsIjoiL2FwaS9zZGsta2V5cyIsImF1dGgiOiJiZWFyZXIiLCJyZXF1aXJlU2lnbmF0dXJlIjp0cnVlfSx7Im5hbWUiOiJjZG4tZmFsbGJhY2siLCJ1cmwiOiIuL3Nka19rZXlzLmpzb24iLCJhdXRoIjoibm9uZSIsInJlcXVpcmVTaWduYXR1cmUiOnRydWV9XX19fQ",
+  "signature": "K3REoZ4Yg9JbyDfIz3_luoIy6S0CJGAvwM6auX01fK3jqzjPBQoDYlrhXgphsmppB1SNWEVZws45rju5XNRsPXU2ocX2-wJQOTl5Kgl_g3Q4YgMOiHv-4mU5DB4QFS3zgyP5H82E6Vjz19OMlpzgYvLKPQ3MhDakG5cPDJtqDaDVIKWcJ128or50ZfPmWiU5j4e0hCjd-WkWUFwKVjYDjyFyMw2qXBHFsS5tYQuKLZnUyk_DjmvnCUY8MpNiGVOeKTZBj7cf7Hz8lO0D5fPXXFPkCYDfNlbOHtco1L3ghyPqxv5Ppptf4kT-SBv-TEVTtBFWcL8_tZthzudWbsSFNg"
 }

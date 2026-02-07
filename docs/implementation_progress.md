@@ -27,9 +27,11 @@
 - 실운영 키 배포 파이프라인(CDN/Secrets Manager) 연동(sdk_keys.json delivery sources)
 - 서비스 운영 체크리스트 문서화(service_readiness_checklist.md)
 - UX 통일 업그레이드 준비 문서화(ux_consistency_upgrade_plan.md)
+- 키 번들 JWS(RS256) 검증 로직 추가(app.js/ops-dashboard)
+- 서버측 접근 제어 고도화(server.js: Bearer + Origin allowlist + rate-limit + direct access 차단)
 
 ## 🔄 남은 작업
 - (현재 기준 핵심 기능 작업 완료, 운영 고도화 단계)
 
 ## ▶ 다음 순차 작업 제안
-1) 키 번들 서명 검증(JWS) + 서버측 접근 제어 고도화
+1) 알림/모니터링 규칙(만료 임박, 서명 검증 실패율) 운영 대시보드 연계

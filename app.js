@@ -111,24 +111,36 @@ const DEFAULT_SDK_KEY_BUNDLE = {
   },
 };
 
+const SDK_KEYS_JWS_PUBLIC_JWK = {
+  kty: 'RSA',
+  n: 'vpT4zNBwo8oJoG9ZOKOMNEf3KQ_-S4snOrLuqqRXzvxcwoKh_nWOPN_cHUsi2gJbrLiqY4u7D9r4oTjV6FbNbRUE01VE1q1pPjpn7-7H6Gl2SmnNlhoV4RbLGcbEsutgB59p_DIZgrBBFSLtz37aptSsp6x0rMwRKMvSlOY-O16aCvFH661tcf1-x51a3Ho_YdhxW4FydBnmO5Dt_ALlziNEsJIlCesokbwwWrd9mcL6xc-K6N90kLl8zWpa_l5v9LAbLtOCXhcP8emGdS4SjlmfnMuUtKT35dbCGG4cjeDSoL22wz66TNBb43XgtajihuSQme3YWhF0UqR3nbUP3w',
+  e: 'AQAB',
+  alg: 'RS256',
+  use: 'sig',
+  kid: 'loopic-dev-rs256-v1',
+};
+
 const KeyRotationService = {
   cacheKey: 'sdkKeyBundleCache',
   tokenKey: 'sdkKeyAccessToken',
   bundle: null,
   loadedAt: 0,
   source: 'default',
+  signatureKid: 'unverified',
+  verifyKeyPromise: null,
   token() {
     return window.__SDK_KEY_TOKEN || localStorage.getItem(this.tokenKey) || '';
   },
   sourceCandidates() {
     const fromBundle = this.bundle?.delivery?.sources || [];
     const defaults = [
-      { name: 'cdn', url: './sdk_keys.json', auth: 'none' },
-      { name: 'secrets-proxy', url: '/api/sdk-keys', auth: 'bearer_optional' },
+      { name: 'secrets-proxy', url: '/api/sdk-keys', auth: 'bearer', requireSignature: true },
+      { name: 'cdn-fallback', url: './sdk_keys.json', auth: 'none', requireSignature: true },
     ];
     return [...fromBundle, ...defaults].filter((s) => s?.url);
   },
-  mergeBundle(remote) {
+  mergeBundle(remoteBundle) {
+    const remote = remoteBundle || {};
     return {
       ...DEFAULT_SDK_KEY_BUNDLE,
       ...remote,
@@ -137,16 +149,83 @@ const KeyRotationService = {
       render: { ...DEFAULT_SDK_KEY_BUNDLE.render, ...(remote.render || {}) },
     };
   },
+  decodeBase64Url(value) {
+    if (!value || typeof value !== 'string') throw new Error('sdk_key_invalid_b64url');
+    const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
+    const binary = atob(padded);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+  },
+  decodeJsonBase64Url(value) {
+    const bytes = this.decodeBase64Url(value);
+    return JSON.parse(new TextDecoder().decode(bytes));
+  },
+  async verifyKey() {
+    if (this.verifyKeyPromise) return this.verifyKeyPromise;
+    this.verifyKeyPromise = crypto.subtle.importKey(
+      'jwk',
+      SDK_KEYS_JWS_PUBLIC_JWK,
+      {
+        name: 'RSASSA-PKCS1-v1_5',
+        hash: 'SHA-256',
+      },
+      false,
+      ['verify'],
+    );
+    return this.verifyKeyPromise;
+  },
+  validateClaims(claims) {
+    const nowSec = Math.floor(Date.now() / 1000);
+    if (claims.nbf && nowSec < claims.nbf) throw new Error('sdk_key_not_before');
+    if (claims.exp && nowSec >= claims.exp) throw new Error('sdk_key_expired');
+    if (claims.aud && claims.aud !== 'loopic-client') throw new Error('sdk_key_invalid_audience');
+    if (!claims.bundle || typeof claims.bundle !== 'object') throw new Error('sdk_key_bundle_missing');
+  },
+  async verifyEnvelope(envelope) {
+    const protectedPart = envelope?.protected;
+    const payloadPart = envelope?.payload;
+    const signaturePart = envelope?.signature;
+    if (!protectedPart || !payloadPart || !signaturePart) throw new Error('sdk_key_signature_missing');
+
+    const header = this.decodeJsonBase64Url(protectedPart);
+    if (header.alg !== 'RS256') throw new Error('sdk_key_alg_mismatch');
+    if (header.kid !== SDK_KEYS_JWS_PUBLIC_JWK.kid) throw new Error('sdk_key_kid_mismatch');
+
+    const verifyKey = await this.verifyKey();
+    const isValid = await crypto.subtle.verify(
+      'RSASSA-PKCS1-v1_5',
+      verifyKey,
+      this.decodeBase64Url(signaturePart),
+      new TextEncoder().encode(`${protectedPart}.${payloadPart}`),
+    );
+    if (!isValid) throw new Error('sdk_key_signature_invalid');
+
+    const claims = this.decodeJsonBase64Url(payloadPart);
+    this.validateClaims(claims);
+    this.signatureKid = header.kid || 'unknown';
+    return claims.bundle;
+  },
   async fetchFromSource(source) {
     const headers = {};
     const token = this.token();
-    if ((source.auth === 'bearer' || source.auth === 'bearer_optional') && token) {
+    if (source.auth === 'bearer') {
+      if (!token) throw new Error(`sdk_key_token_missing:${source.name || 'source'}`);
       headers.Authorization = `Bearer ${token}`;
     }
+    if (source.auth === 'bearer_optional' && token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
     const res = await fetch(source.url, { cache: 'no-store', headers });
     if (!res.ok) throw new Error(`sdk_key_fetch_failed:${source.name || 'source'}`);
     const data = await res.json();
-    return { sourceName: source.name || 'source', bundle: this.mergeBundle(data) };
+
+    const merged = source.requireSignature
+      ? this.mergeBundle(await this.verifyEnvelope(data))
+      : this.mergeBundle(data);
+    return { sourceName: source.name || 'source', bundle: merged };
   },
   async loadBundle({ force = false } = {}) {
     if (this.bundle && !force) return this.bundle;
@@ -158,7 +237,12 @@ const KeyRotationService = {
         this.bundle = fetched.bundle;
         this.source = fetched.sourceName;
         this.loadedAt = Date.now();
-        localStorage.setItem(this.cacheKey, JSON.stringify({ at: this.loadedAt, source: this.source, bundle: this.bundle }));
+        localStorage.setItem(this.cacheKey, JSON.stringify({
+          at: this.loadedAt,
+          source: this.source,
+          signatureKid: this.signatureKid,
+          bundle: this.bundle,
+        }));
         return this.bundle;
       } catch {
         // try next source
@@ -171,6 +255,7 @@ const KeyRotationService = {
         const parsed = JSON.parse(raw);
         this.bundle = parsed.bundle;
         this.source = parsed.source || 'cache';
+        this.signatureKid = parsed.signatureKid || 'cache';
         this.loadedAt = parsed.at || Date.now();
         return this.bundle;
       }
@@ -180,6 +265,7 @@ const KeyRotationService = {
 
     this.bundle = DEFAULT_SDK_KEY_BUNDLE;
     this.source = 'default';
+    this.signatureKid = 'default';
     this.loadedAt = Date.now();
     return this.bundle;
   },
@@ -205,6 +291,7 @@ const KeyRotationService = {
       billing: bundle?.billing?.version || 'unknown',
       render: bundle?.render?.version || 'unknown',
       source: this.sourceName(),
+      signatureKid: this.signatureKid,
     };
   },
   async startAutoRefresh() {

@@ -42,6 +42,14 @@
     </main>
 
     <script>
+      const SDK_KEYS_JWS_PUBLIC_JWK = {
+        kty: 'RSA',
+        n: 'vpT4zNBwo8oJoG9ZOKOMNEf3KQ_-S4snOrLuqqRXzvxcwoKh_nWOPN_cHUsi2gJbrLiqY4u7D9r4oTjV6FbNbRUE01VE1q1pPjpn7-7H6Gl2SmnNlhoV4RbLGcbEsutgB59p_DIZgrBBFSLtz37aptSsp6x0rMwRKMvSlOY-O16aCvFH661tcf1-x51a3Ho_YdhxW4FydBnmO5Dt_ALlziNEsJIlCesokbwwWrd9mcL6xc-K6N90kLl8zWpa_l5v9LAbLtOCXhcP8emGdS4SjlmfnMuUtKT35dbCGG4cjeDSoL22wz66TNBb43XgtajihuSQme3YWhF0UqR3nbUP3w',
+        e: 'AQAB',
+        alg: 'RS256',
+        use: 'sig',
+        kid: 'loopic-dev-rs256-v1',
+      };
       const funnelNames = new Set([
         'paywall_viewed','paywall_plan_selected','purchase_started','purchase_succeeded','purchase_failed',
         'purchase_restore_started','purchase_restore_succeeded','purchase_restore_failed',
@@ -60,11 +68,39 @@
         el.className = `aux-value ${cls}`.trim();
       };
 
+      const decodeBase64Url = (value) => {
+        const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+        const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
+        const binary = atob(padded);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+        return bytes;
+      };
+      const decodeJson = (value) => JSON.parse(new TextDecoder().decode(decodeBase64Url(value)));
+
+      async function verifySignedEnvelope(envelope) {
+        const verifyKey = await crypto.subtle.importKey('jwk', SDK_KEYS_JWS_PUBLIC_JWK, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['verify']);
+        const verified = await crypto.subtle.verify(
+          'RSASSA-PKCS1-v1_5',
+          verifyKey,
+          decodeBase64Url(envelope.signature),
+          new TextEncoder().encode(`${envelope.protected}.${envelope.payload}`),
+        );
+        if (!verified) throw new Error('invalid_signature');
+        const header = decodeJson(envelope.protected);
+        if (header.kid !== SDK_KEYS_JWS_PUBLIC_JWK.kid || header.alg !== 'RS256') throw new Error('invalid_header');
+        return decodeJson(envelope.payload);
+      }
+
       async function loadKeyBundleStatus() {
         try {
-          const res = await fetch('./sdk_keys.json', { cache: 'no-store' });
-          if (!res.ok) throw new Error();
-          const cfg = await res.json();
+          const token = localStorage.getItem('sdkKeyAccessToken') || '';
+          const headers = token ? { Authorization: `Bearer ${token}` } : {};
+          const res = await fetch('/api/sdk-keys', { cache: 'no-store', headers });
+          if (!res.ok) throw new Error('sdk_keys_api_unavailable');
+          const envelope = await res.json();
+          const claims = await verifySignedEnvelope(envelope);
+          const cfg = claims.bundle || {};
           const adsVer = cfg?.ads?.version || 'n/a';
           const billingVer = cfg?.billing?.version || 'n/a';
           const renderVer = cfg?.render?.version || 'n/a';
@@ -73,7 +109,7 @@
             .some((d) => new Date(d).getTime() <= Date.now());
           statusEl('sdkBundleStatus', `ads:${adsVer} bill:${billingVer} render:${renderVer}`, expired ? 'warn' : 'ok');
         } catch {
-          statusEl('sdkBundleStatus', 'sdk_keys.json unavailable', 'bad');
+          statusEl('sdkBundleStatus', 'signed bundle unavailable', 'bad');
         }
       }
 
@@ -91,7 +127,7 @@
         statusEl('adsSdkStatus', window.LoopicAdsSDK || window.AdsSDK ? 'connected' : 'not detected', window.LoopicAdsSDK || window.AdsSDK ? 'ok':'warn');
         statusEl('billingSdkStatus', window.LoopicBillingSDK || window.BillingSDK ? 'connected' : 'not detected', window.LoopicBillingSDK || window.BillingSDK ? 'ok':'warn');
         statusEl('renderSdkStatus', window.LoopicRenderSDK || window.RenderSDK ? 'connected' : 'not detected', window.LoopicRenderSDK || window.RenderSDK ? 'ok':'warn');
-        document.getElementById('sdkBundleSource').textContent = `source: ${cachedBundle?.source || 'unknown'} | loadedAt: ${cachedBundle?.at ? new Date(cachedBundle.at).toLocaleString() : '-'}`;
+        document.getElementById('sdkBundleSource').textContent = `source: ${cachedBundle?.source || 'unknown'} | kid: ${cachedBundle?.signatureKid || '-'} | loadedAt: ${cachedBundle?.at ? new Date(cachedBundle.at).toLocaleString() : '-'}`;
 
         const rows = events.filter((e) => funnelNames.has(e.eventName)).slice(-20).reverse();
         const tbody = document.getElementById('eventRows');
