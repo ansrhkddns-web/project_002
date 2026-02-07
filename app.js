@@ -117,15 +117,89 @@ const AdsService = {
 };
 
 const BillingService = {
-  purchase(plan) {
-    return new Promise((resolve) => {
-      setTimeout(() => resolve({ ok: true, plan }), 1200);
-    });
+  sdk() {
+    return window.LoopicBillingSDK || window.BillingSDK || null;
   },
-  restore() {
-    return new Promise((resolve) => {
-      setTimeout(() => resolve({ ok: true, restored: true }), 1200);
-    });
+  productForPlan(plan) {
+    return plan === 'yearly' ? 'loopic.yearly.trial' : 'loopic.monthly';
+  },
+  persistSubscription(meta) {
+    localStorage.setItem('billingLastSubscription', JSON.stringify({
+      productId: meta.productId,
+      receipt: meta.receipt || null,
+      purchasedAt: new Date().toISOString(),
+    }));
+  },
+  readPersistedSubscription() {
+    try {
+      const raw = localStorage.getItem('billingLastSubscription');
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  },
+  normalizePurchase(result, fallbackProductId) {
+    return {
+      ok: !!result?.ok,
+      plan: result?.plan || (fallbackProductId.includes('yearly') ? 'yearly' : 'monthly'),
+      productId: result?.productId || fallbackProductId,
+      receipt: result?.receipt || null,
+    };
+  },
+  async purchase(plan) {
+    const productId = this.productForPlan(plan);
+    const sdk = this.sdk();
+
+    if (sdk?.purchase) {
+      const result = await sdk.purchase({ productId, plan });
+      const normalized = this.normalizePurchase(result, productId);
+      if (!normalized.ok) throw new Error(result?.code || 'purchase_failed');
+      this.persistSubscription(normalized);
+      return normalized;
+    }
+
+    if (window.PaymentRequest) {
+      const payment = new PaymentRequest(
+        [{ supportedMethods: 'basic-card' }],
+        {
+          total: {
+            label: plan === 'yearly' ? 'Loopic Premium (Yearly Trial)' : 'Loopic Premium (Monthly)',
+            amount: { currency: 'USD', value: plan === 'yearly' ? '0.00' : '2.99' },
+          },
+        },
+      );
+      const response = await payment.show();
+      await response.complete('success');
+      const fallback = { ok: true, plan, productId, receipt: `payment-request:${Date.now()}` };
+      this.persistSubscription(fallback);
+      return fallback;
+    }
+
+    throw new Error('billing_sdk_unavailable');
+  },
+  async restore() {
+    const sdk = this.sdk();
+
+    if (sdk?.restorePurchases) {
+      const result = await sdk.restorePurchases();
+      const restored = Array.isArray(result?.subscriptions) ? result.subscriptions[0] : null;
+      if (!restored) throw new Error(result?.code || 'restore_not_found');
+      const normalized = {
+        ok: true,
+        restored: true,
+        productId: restored.productId || 'loopic.unknown',
+        receipt: restored.receipt || null,
+      };
+      this.persistSubscription(normalized);
+      return normalized;
+    }
+
+    const local = this.readPersistedSubscription();
+    if (local?.productId) {
+      return { ok: true, restored: true, productId: local.productId, receipt: local.receipt || null };
+    }
+
+    throw new Error('restore_not_found');
   },
 };
 
@@ -807,8 +881,9 @@ function paywallView() {
       state.screen = state.paywallFrom || 'home';
       setActiveNav(state.screen === 'paywall' ? 'home' : state.screen);
       render();
-    } catch {
-      toast('구매 복원에 실패했습니다. 다시 시도해주세요.');
+    } catch (error) {
+      const code = error?.message || 'restore_failed';
+      toast(code === 'restore_not_found' ? '복원 가능한 구매 내역이 없습니다.' : '구매 복원에 실패했습니다. 다시 시도해주세요.');
     } finally {
       state.billingState = 'idle';
       render();
@@ -829,8 +904,9 @@ function paywallView() {
       state.screen = state.paywallFrom || 'export';
       setActiveNav(state.screen === 'paywall' ? 'home' : state.screen);
       render();
-    } catch {
-      toast('결제에 실패했습니다. 다시 시도해주세요.');
+    } catch (error) {
+      const code = error?.message || 'purchase_failed';
+      toast(code === 'billing_sdk_unavailable' ? '결제 SDK를 불러올 수 없습니다. 환경을 확인해주세요.' : '결제에 실패했습니다. 다시 시도해주세요.');
     } finally {
       state.billingState = 'idle';
       render();

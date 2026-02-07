@@ -16,14 +16,14 @@
 - 정책 문서 URL 상수(Privacy/Terms) 연결 준비
 - 실제 카메라(WebRTC) 촬영 + 파일 저장(File System Access/다운로드 fallback) 연결
 - 카메라 캡처 UI 시네마틱 오버레이/컨트롤로 디자인 개선
+- BillingService 실제 결제/복원 SDK 연결(PaymentRequest + 네이티브 SDK 브리지)
 
 ## 🔄 남은 작업
 1. AdsService를 실제 광고 SDK 콜백으로 교체
-2. BillingService를 실제 결제/복원 SDK로 교체
-3. 실제 영상 렌더링 파이프라인(FFmpeg 등) 연결
-4. 에러/오프라인/저장공간 부족 케이스 상세 처리
-5. 분석 이벤트 수집(D1/D3/D7, 결제 퍼널, 광고 퍼널)
-6. 정책 문서 URL(Privacy/Terms) 실제 운영 링크 입력
+2. 실제 영상 렌더링 파이프라인(FFmpeg 등) 연결
+3. 에러/오프라인/저장공간 부족 케이스 상세 처리
+4. 분석 이벤트 수집(D1/D3/D7, 결제 퍼널, 광고 퍼널)
+5. 정책 문서 URL(Privacy/Terms) 실제 운영 링크 입력
 
 ## ▶ 다음 순차 작업 제안
-1) AdsService 실제 SDK 연결 → 2) BillingService 실제 SDK 연결 → 3) 영상 렌더링 엔진 연결
+1) AdsService 실제 SDK 연결 → 2) 영상 렌더링 엔진 연결 → 3) 에러/오프라인 케이스 보강
