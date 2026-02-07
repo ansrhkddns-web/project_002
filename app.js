@@ -66,6 +66,7 @@ const state = {
   paywallFrom: 'home',
   pendingPremiumAction: null,
   billingState: 'idle', // idle | restoring | purchasing
+  adGateState: 'idle', // idle | loading | showing | rewarded | canceled | failed
   exportHistory: JSON.parse(localStorage.getItem('exportHistory') || '[]'),
 };
 
@@ -73,6 +74,59 @@ const $ = (s) => document.querySelector(s);
 const fmtDate = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
 let adTimer = null;
 let exportTimer = null;
+const LEGAL_URLS = {
+  privacy: '',
+  terms: '',
+};
+
+const AdsService = {
+  showRewarded({ onTick, onFinished, onCanceled }) {
+    if (adTimer) return Promise.reject(new Error('ad_already_running'));
+
+    return new Promise((resolve, reject) => {
+      let remain = 30;
+      const cleanup = () => {
+        if (adTimer) {
+          clearInterval(adTimer);
+          adTimer = null;
+        }
+        window.__cancelRewardedAd = null;
+      };
+
+      onTick(remain);
+      adTimer = setInterval(() => {
+        remain -= 1;
+        onTick(Math.max(0, remain));
+        if (remain <= 0) {
+          cleanup();
+          onFinished?.();
+          resolve({ rewarded: true });
+        }
+      }, 1000);
+
+      const cancel = () => {
+        cleanup();
+        onCanceled?.();
+        reject(new Error('ad_canceled'));
+      };
+
+      window.__cancelRewardedAd = cancel;
+    });
+  },
+};
+
+const BillingService = {
+  purchase(plan) {
+    return new Promise((resolve) => {
+      setTimeout(() => resolve({ ok: true, plan }), 1200);
+    });
+  },
+  restore() {
+    return new Promise((resolve) => {
+      setTimeout(() => resolve({ ok: true, restored: true }), 1200);
+    });
+  },
+};
 
 function save() {
   localStorage.setItem('lang', state.lang);
@@ -454,38 +508,45 @@ function exportView() {
 }
 
 function openRewardAdGate(onComplete) {
+  if (state.adGateState !== 'idle') return;
   if (adTimer) clearInterval(adTimer);
+  state.adGateState = 'loading';
 
   openModal(`
     <h3>영상 준비 중</h3>
     <p style="color:var(--muted)">잠시만 기다려주세요.</p>
     <div class="bar" style="margin:8px 0 4px"><div id="adProgress" class="bar-fill" style="width:0%"></div></div>
-    <p id="adTimer" class="meta" style="display:block;text-align:center">30초 남음</p>
+    <p id="adTimer" class="meta" style="display:block;text-align:center">광고 로딩 중...</p>
     <div class="btn-row">
       <button class="btn secondary" id="cancelAd">취소</button>
     </div>`);
 
-  let remain = 30;
-  adTimer = setInterval(() => {
-    remain -= 1;
-    const pct = Math.round(((30 - remain) / 30) * 100);
-    $('#adProgress').style.width = `${pct}%`;
-    $('#adTimer').textContent = `${Math.max(0, remain)}초 남음`;
-    if (remain <= 0) {
-      clearInterval(adTimer);
-      adTimer = null;
-      closeModal();
-      onComplete();
-    }
-  }, 1000);
-
-  $('#cancelAd').onclick = () => {
-    if (adTimer) {
-      clearInterval(adTimer);
-      adTimer = null;
-    }
+  state.adGateState = 'showing';
+  AdsService.showRewarded({
+    onTick: (remain) => {
+      const pct = Math.round(((30 - remain) / 30) * 100);
+      $('#adProgress').style.width = `${pct}%`;
+      $('#adTimer').textContent = `${remain}초 남음`;
+    },
+    onFinished: () => {
+      state.adGateState = 'rewarded';
+    },
+    onCanceled: () => {
+      state.adGateState = 'canceled';
+    },
+  }).then(() => {
+    closeModal();
+    onComplete();
+  }).catch(() => {
     closeModal();
     toast('생성이 취소되었습니다.');
+  }).finally(() => {
+    state.adGateState = 'idle';
+    window.__cancelRewardedAd = null;
+  });
+
+  $('#cancelAd').onclick = () => {
+    window.__cancelRewardedAd?.();
   };
 }
 
@@ -569,12 +630,14 @@ function paywallView() {
     setActiveNav(state.screen === 'paywall' ? 'home' : state.screen);
     render();
   };
-  $('#restoreBtn').onclick = () => {
+  $('#restoreBtn').onclick = async () => {
     if (state.billingState !== 'idle') return;
     state.billingState = 'restoring';
+    render();
     toast('구매 복원 중...');
-    setTimeout(() => {
-      state.billingState = 'idle';
+    try {
+      const result = await BillingService.restore();
+      if (!result.ok) throw new Error('restore_failed');
       state.pay = 'subscribed';
       save();
       runPendingPremiumAction();
@@ -582,14 +645,21 @@ function paywallView() {
       state.screen = state.paywallFrom || 'home';
       setActiveNav(state.screen === 'paywall' ? 'home' : state.screen);
       render();
-    }, 1200);
+    } catch {
+      toast('구매 복원에 실패했습니다. 다시 시도해주세요.');
+    } finally {
+      state.billingState = 'idle';
+      render();
+    }
   };
-  $('#startTrial').onclick = () => {
+  $('#startTrial').onclick = async () => {
     if (state.billingState !== 'idle') return;
     state.billingState = 'purchasing';
+    render();
     toast('결제 처리 중...');
-    setTimeout(() => {
-      state.billingState = 'idle';
+    try {
+      const result = await BillingService.purchase(state.paywallPlan);
+      if (!result.ok) throw new Error('purchase_failed');
       state.pay = 'subscribed';
       save();
       runPendingPremiumAction();
@@ -597,10 +667,27 @@ function paywallView() {
       state.screen = state.paywallFrom || 'export';
       setActiveNav(state.screen === 'paywall' ? 'home' : state.screen);
       render();
-    }, 1200);
+    } catch {
+      toast('결제에 실패했습니다. 다시 시도해주세요.');
+    } finally {
+      state.billingState = 'idle';
+      render();
+    }
   };
-  $('#privacyBtn').onclick = () => openModal('<h3>Privacy Policy</h3><p style="color:var(--muted)">개인정보 처리방침 초안입니다. 실제 배포 시 정식 문서 URL로 연결하세요.</p><div class="btn-row"><button class="btn primary" id="closeLegal">닫기</button></div>');
-  $('#termsBtn').onclick = () => openModal('<h3>Terms of Service</h3><p style="color:var(--muted)">이용약관 초안입니다. 실제 배포 시 정식 문서 URL로 연결하세요.</p><div class="btn-row"><button class="btn primary" id="closeLegal">닫기</button></div>');
+  $('#privacyBtn').onclick = () => {
+    if (LEGAL_URLS.privacy) {
+      window.open(LEGAL_URLS.privacy, '_blank', 'noopener');
+      return;
+    }
+    openModal('<h3>Privacy Policy</h3><p style="color:var(--muted)">개인정보 처리방침 초안입니다. 실제 배포 시 정식 문서 URL로 연결하세요.</p><div class="btn-row"><button class="btn primary" id="closeLegal">닫기</button></div>');
+  };
+  $('#termsBtn').onclick = () => {
+    if (LEGAL_URLS.terms) {
+      window.open(LEGAL_URLS.terms, '_blank', 'noopener');
+      return;
+    }
+    openModal('<h3>Terms of Service</h3><p style="color:var(--muted)">이용약관 초안입니다. 실제 배포 시 정식 문서 URL로 연결하세요.</p><div class="btn-row"><button class="btn primary" id="closeLegal">닫기</button></div>');
+  };
   $('#modal').addEventListener('click', (e) => { if (e.target && e.target.id === 'closeLegal') closeModal(); }, { once: true });
 }
 
