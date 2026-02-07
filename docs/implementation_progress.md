@@ -30,9 +30,11 @@
 - 키 번들 JWS(RS256) 검증 로직 추가(app.js/ops-dashboard)
 - 서버측 접근 제어 고도화(server.js: Bearer + Origin allowlist + rate-limit + direct access 차단)
 - 운영 대시보드 경보 규칙 연계(만료 임박 + 서명 검증 실패율 1h)
+- Android 빌드 가능 구조 추가(android WebView 프로젝트 + assets sync 스크립트)
 
 ## 🔄 남은 작업
 - (현재 기준 핵심 기능 작업 완료, 운영 고도화 단계)
 
 ## ▶ 다음 순차 작업 제안
-1) 외부 알림 채널 연동(슬랙/메일/PagerDuty) 및 임계치 운영 튜닝
+1) Android 실기기 통합 테스트(카메라/권한/WebView 동작)
+2) 외부 알림 채널 연동(슬랙/메일/PagerDuty) 및 임계치 운영 튜닝
