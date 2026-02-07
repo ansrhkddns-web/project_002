@@ -128,6 +128,70 @@ const BillingService = {
   },
 };
 
+
+const CameraService = {
+  stream: null,
+  isSupported() {
+    return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  },
+  async start(videoEl) {
+    if (!this.isSupported()) throw new Error('camera_not_supported');
+    this.stop();
+    this.stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment' },
+      audio: false,
+    });
+    videoEl.srcObject = this.stream;
+    await videoEl.play();
+  },
+  stop() {
+    if (!this.stream) return;
+    this.stream.getTracks().forEach((t) => t.stop());
+    this.stream = null;
+  },
+  async captureFrame(videoEl) {
+    if (!videoEl.videoWidth || !videoEl.videoHeight) throw new Error('camera_frame_unavailable');
+    const canvas = document.createElement('canvas');
+    canvas.width = videoEl.videoWidth;
+    canvas.height = videoEl.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+
+    const blob = await new Promise((resolve, reject) => {
+      canvas.toBlob((value) => {
+        if (!value) reject(new Error('camera_blob_failed'));
+        else resolve(value);
+      }, 'image/jpeg', 0.92);
+    });
+    return blob;
+  },
+};
+
+const FileService = {
+  async saveImage(blob, filename) {
+    if (window.showSaveFilePicker) {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: filename,
+        types: [{ description: 'JPEG Image', accept: { 'image/jpeg': ['.jpg', '.jpeg'] } }],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      return { method: 'file-system-access' };
+    }
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    return { method: 'download' };
+  },
+};
+
 function save() {
   localStorage.setItem('lang', state.lang);
   localStorage.setItem('onboardingCompleted', String(state.onboardingCompleted));
@@ -296,7 +360,10 @@ function cameraView() {
     <section class="card">
       <h2>오늘의 촬영</h2>
       <p style="color:var(--muted);margin-top:8px;">${exists ? '오늘 기록이 있어요. 다시 촬영하면 덮어쓰기 됩니다.' : '어제와 오늘을 자연스럽게 이어 촬영해보세요.'}</p>
-      <div class="camera-stage">📷 Camera Preview (Prototype)</div>
+      <div class="camera-stage">
+        <video id="cameraPreview" class="camera-preview" playsinline autoplay muted></video>
+        <div id="cameraStatus" class="camera-status">카메라 연결 중...</div>
+      </div>
       <label style="display:block;margin:12px 0 6px;color:var(--muted)">실루엣 투명도 (${state.silhouetteOpacity}%)</label>
       <input id="opacity" class="slider" type="range" min="0" max="100" value="${state.silhouetteOpacity}">
       <div class="btn-row">
@@ -307,14 +374,62 @@ function cameraView() {
     </section>`;
 
   $('#opacity').oninput = (e) => { state.silhouetteOpacity = Number(e.target.value); save(); };
-  const store = () => {
-    if (exists && !confirm('오늘 기록을 덮어쓸까요?')) return;
-    state.entries[key] = { imageUri: `captured-${Date.now()}.jpg`, updatedAt: new Date().toISOString() };
-    save(); toast('저장 완료!');
-    render();
+
+  const videoEl = $('#cameraPreview');
+  const statusEl = $('#cameraStatus');
+
+  const saveEntry = async (blob, source) => {
+    const entryKey = `${state.activeAlbum}:${fmtDate()}`;
+    if (state.entries[entryKey] && !confirm('오늘 기록을 덮어쓸까요?')) return;
+
+    const filename = `loopic-${state.activeAlbum}-${fmtDate()}-${Date.now()}.jpg`;
+    try {
+      await FileService.saveImage(blob, filename);
+      state.entries[entryKey] = { imageUri: filename, updatedAt: new Date().toISOString(), source };
+      save();
+      toast('저장 완료!');
+      render();
+    } catch {
+      toast('파일 저장에 실패했습니다. 다시 시도해주세요.');
+    }
   };
-  $('#captureBtn').onclick = store;
-  $('#upload').onchange = store;
+
+  const initCamera = async () => {
+    if (!CameraService.isSupported()) {
+      statusEl.textContent = '이 브라우저는 카메라 SDK(WebRTC)를 지원하지 않습니다.';
+      return;
+    }
+
+    try {
+      await CameraService.start(videoEl);
+      statusEl.classList.add('hidden');
+    } catch {
+      statusEl.textContent = '카메라 권한이 필요합니다. 브라우저 설정에서 허용해주세요.';
+    }
+  };
+
+  $('#captureBtn').onclick = async () => {
+    if (!CameraService.stream) {
+      toast('카메라 연결 후 다시 시도해주세요.');
+      return;
+    }
+
+    try {
+      const blob = await CameraService.captureFrame(videoEl);
+      await saveEntry(blob, 'camera');
+    } catch {
+      toast('촬영에 실패했습니다. 다시 시도해주세요.');
+    }
+  };
+
+  $('#upload').onchange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await saveEntry(file, 'upload');
+    e.target.value = '';
+  };
+
+  initCamera();
 }
 
 function timelineView() {
@@ -708,6 +823,7 @@ function attachGlobal() {
 }
 
 function render() {
+  if (state.screen !== 'camera') CameraService.stop();
   if (!state.onboardingCompleted) return onboardingView();
   ({ home: homeView, camera: cameraView, timeline: timelineView, export: exportView, paywall: paywallView }[state.screen] || homeView)();
 }
