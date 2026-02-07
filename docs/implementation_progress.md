@@ -24,9 +24,10 @@
 - 정책 문서 URL 별도 관리 페이지 연결(legal-links.html)
 - SDK/분석 운영 모니터링 대시보드 연결(ops-dashboard.html)
 - SDK 키 번들 자동 로테이션/자동 리프레시(sdk_keys.json + KeyRotationService)
+- 실운영 키 배포 파이프라인(CDN/Secrets Manager) 연동(sdk_keys.json delivery sources)
 
 ## 🔄 남은 작업
 - (현재 기준 핵심 기능 작업 완료, 운영 고도화 단계)
 
 ## ▶ 다음 순차 작업 제안
-1) 실운영 키 배포 파이프라인(CDN/Secrets Manager) 연동
+1) 키 번들 서명 검증(JWS) + 서버측 접근 제어 고도화

@@ -25,5 +25,19 @@
     "version": "2026.02.r1",
     "expiresAt": "2027-01-01T00:00:00.000Z",
     "sdkNamespace": "LoopicRenderSDK"
+  },
+  "delivery": {
+    "sources": [
+      {
+        "name": "cdn",
+        "url": "./sdk_keys.json",
+        "auth": "none"
+      },
+      {
+        "name": "secrets-proxy",
+        "url": "/api/sdk-keys",
+        "auth": "bearer_optional"
+      }
+    ]
   }
 }

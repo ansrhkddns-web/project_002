@@ -47,7 +47,7 @@
         <article class="card"><div class="label">Ads SDK Bridge</div><div id="adsSdkStatus" class="value">-</div></article>
         <article class="card"><div class="label">Billing SDK Bridge</div><div id="billingSdkStatus" class="value">-</div></article>
         <article class="card"><div class="label">Render SDK Bridge</div><div id="renderSdkStatus" class="value">-</div></article>
-        <article class="card"><div class="label">SDK Key Bundle</div><div id="sdkBundleStatus" class="value mono">-</div></article>
+        <article class="card"><div class="label">SDK Key Bundle</div><div id="sdkBundleStatus" class="value mono">-</div><p class="sub" id="sdkBundleSource" style="margin-top:6px">source: -</p></article>
       </section>
 
       <section class="card">
@@ -99,6 +99,7 @@
         const events = parseJSON('analyticsEvents', []);
         const milestones = parseJSON('analyticsMilestones', { D1:false, D3:false, D7:false });
         const billing = parseJSON('billingLastSubscription', null);
+        const cachedBundle = parseJSON('sdkKeyBundleCache', null);
 
         statusEl('queueSize', String(events.length), events.length > 0 ? 'ok' : 'warn');
         statusEl('latestEvent', events.length ? events[events.length - 1].eventName : '-', events.length ? 'ok' : 'warn');
@@ -108,6 +109,7 @@
         statusEl('adsSdkStatus', window.LoopicAdsSDK || window.AdsSDK ? 'connected' : 'not detected', window.LoopicAdsSDK || window.AdsSDK ? 'ok':'warn');
         statusEl('billingSdkStatus', window.LoopicBillingSDK || window.BillingSDK ? 'connected' : 'not detected', window.LoopicBillingSDK || window.BillingSDK ? 'ok':'warn');
         statusEl('renderSdkStatus', window.LoopicRenderSDK || window.RenderSDK ? 'connected' : 'not detected', window.LoopicRenderSDK || window.RenderSDK ? 'ok':'warn');
+        document.getElementById('sdkBundleSource').textContent = `source: ${cachedBundle?.source || 'unknown'} | loadedAt: ${cachedBundle?.at ? new Date(cachedBundle.at).toLocaleString() : '-'}`;
 
         const rows = events.filter((e) => funnelNames.has(e.eventName)).slice(-20).reverse();
         const tbody = document.getElementById('eventRows');

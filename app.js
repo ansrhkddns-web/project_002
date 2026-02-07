@@ -113,44 +113,81 @@ const DEFAULT_SDK_KEY_BUNDLE = {
 
 const KeyRotationService = {
   cacheKey: 'sdkKeyBundleCache',
+  tokenKey: 'sdkKeyAccessToken',
   bundle: null,
   loadedAt: 0,
+  source: 'default',
+  token() {
+    return window.__SDK_KEY_TOKEN || localStorage.getItem(this.tokenKey) || '';
+  },
+  sourceCandidates() {
+    const fromBundle = this.bundle?.delivery?.sources || [];
+    const defaults = [
+      { name: 'cdn', url: './sdk_keys.json', auth: 'none' },
+      { name: 'secrets-proxy', url: '/api/sdk-keys', auth: 'bearer_optional' },
+    ];
+    return [...fromBundle, ...defaults].filter((s) => s?.url);
+  },
+  mergeBundle(remote) {
+    return {
+      ...DEFAULT_SDK_KEY_BUNDLE,
+      ...remote,
+      ads: { ...DEFAULT_SDK_KEY_BUNDLE.ads, ...(remote.ads || {}) },
+      billing: { ...DEFAULT_SDK_KEY_BUNDLE.billing, ...(remote.billing || {}) },
+      render: { ...DEFAULT_SDK_KEY_BUNDLE.render, ...(remote.render || {}) },
+    };
+  },
+  async fetchFromSource(source) {
+    const headers = {};
+    const token = this.token();
+    if ((source.auth === 'bearer' || source.auth === 'bearer_optional') && token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    const res = await fetch(source.url, { cache: 'no-store', headers });
+    if (!res.ok) throw new Error(`sdk_key_fetch_failed:${source.name || 'source'}`);
+    const data = await res.json();
+    return { sourceName: source.name || 'source', bundle: this.mergeBundle(data) };
+  },
   async loadBundle({ force = false } = {}) {
     if (this.bundle && !force) return this.bundle;
 
-    try {
-      const res = await fetch('./sdk_keys.json', { cache: 'no-store' });
-      if (!res.ok) throw new Error('sdk_key_fetch_failed');
-      const remote = await res.json();
-      this.bundle = {
-        ...DEFAULT_SDK_KEY_BUNDLE,
-        ...remote,
-        ads: { ...DEFAULT_SDK_KEY_BUNDLE.ads, ...(remote.ads || {}) },
-        billing: { ...DEFAULT_SDK_KEY_BUNDLE.billing, ...(remote.billing || {}) },
-        render: { ...DEFAULT_SDK_KEY_BUNDLE.render, ...(remote.render || {}) },
-      };
-      this.loadedAt = Date.now();
-      localStorage.setItem(this.cacheKey, JSON.stringify({ at: this.loadedAt, bundle: this.bundle }));
-      return this.bundle;
-    } catch {
+    const sources = this.sourceCandidates();
+    for (const source of sources) {
       try {
-        const raw = localStorage.getItem(this.cacheKey);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          this.bundle = parsed.bundle;
-          this.loadedAt = parsed.at || Date.now();
-          return this.bundle;
-        }
+        const fetched = await this.fetchFromSource(source);
+        this.bundle = fetched.bundle;
+        this.source = fetched.sourceName;
+        this.loadedAt = Date.now();
+        localStorage.setItem(this.cacheKey, JSON.stringify({ at: this.loadedAt, source: this.source, bundle: this.bundle }));
+        return this.bundle;
       } catch {
-        // noop
+        // try next source
       }
-      this.bundle = DEFAULT_SDK_KEY_BUNDLE;
-      this.loadedAt = Date.now();
-      return this.bundle;
     }
+
+    try {
+      const raw = localStorage.getItem(this.cacheKey);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        this.bundle = parsed.bundle;
+        this.source = parsed.source || 'cache';
+        this.loadedAt = parsed.at || Date.now();
+        return this.bundle;
+      }
+    } catch {
+      // noop
+    }
+
+    this.bundle = DEFAULT_SDK_KEY_BUNDLE;
+    this.source = 'default';
+    this.loadedAt = Date.now();
+    return this.bundle;
   },
   cachedBundle() {
     return this.bundle || DEFAULT_SDK_KEY_BUNDLE;
+  },
+  sourceName() {
+    return this.source;
   },
   async section(name) {
     const bundle = await this.loadBundle();
@@ -167,6 +204,7 @@ const KeyRotationService = {
       ads: bundle?.ads?.version || 'unknown',
       billing: bundle?.billing?.version || 'unknown',
       render: bundle?.render?.version || 'unknown',
+      source: this.sourceName(),
     };
   },
   async startAutoRefresh() {
