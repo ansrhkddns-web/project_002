@@ -1,0 +1,9 @@
+node_modules/
+
+# Android build artifacts
+android/.gradle/
+android/app/build/
+android/local.properties
+
+# Local/CI generated QA reports
+artifacts/qa_reports/

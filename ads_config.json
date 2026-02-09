@@ -1,0 +1,9 @@
+{
+  "appId": "loopic-dev-app",
+  "rewardedAdUnits": {
+    "android": "ca-app-pub-3940256099942544/5224354917",
+    "ios": "ca-app-pub-3940256099942544/1712485313",
+    "web": "test-web-rewarded-unit",
+    "default": "test-web-rewarded-unit"
+  }
+}

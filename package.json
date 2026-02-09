@@ -1,0 +1,25 @@
+{
+  "name": "timeflow-ui-prototype",
+  "version": "1.0.0",
+  "description": "온보딩/홈/카메라/타임라인/앨범/설정을 포함한 프론트엔드 프로토타입입니다.",
+  "main": "app.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "test:smoke": "./scripts/bug-smoke-test.sh",
+    "android:sync": "./scripts/android-sync-assets.sh",
+    "android:debug": "cd android && gradle assembleDebug",
+    "android:install": "cd android && gradle installDebug",
+    "android:qa-device": "./scripts/android-device-qa.sh",
+    "alerts:smoke": "./scripts/alert-channel-smoke.sh",
+    "android:qa-real-device:note": "echo \"Run GitHub Actions workflow: .github/workflows/android-real-device-qa.yml\"",
+    "play:verify:report:local": "STATUS=FAIL REASON=missing_play_service_account_secret PACKAGE_NAME=com.timeflow.app PLAY_TRACK=internal RUN_ID=local RUN_URL=local REPORT_OUT=artifacts/qa_reports/play_upload_verification_last_run.md ./scripts/play-upload-verification-report.sh"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "private": true
+}

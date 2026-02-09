@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Loopic Ops Dashboard</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body class="aux-page">
+    <main class="aux-wrap">
+      <header>
+        <h1 class="aux-title">SDK/분석 운영 모니터링 대시보드</h1>
+        <p class="aux-sub">LocalStorage 이벤트 큐, 광고/결제/렌더 SDK 브리지 상태, 최근 퍼널 이벤트를 빠르게 점검합니다.</p>
+      </header>
+
+      <section class="aux-toolbar">
+        <button id="refreshBtn" class="btn primary">새로고침</button>
+        <button id="clearEventsBtn" class="btn secondary">analyticsEvents 비우기</button>
+      </section>
+
+      <section class="aux-grid">
+        <article class="aux-card"><div class="aux-label">Analytics Queue Size</div><div class="aux-value" id="queueSize">0</div></article>
+        <article class="aux-card"><div class="aux-label">Latest Event</div><div class="aux-value" id="latestEvent">-</div></article>
+        <article class="aux-card"><div class="aux-label">Retention Milestones</div><div class="aux-value" id="retentionState">-</div></article>
+        <article class="aux-card"><div class="aux-label">Billing Subscription</div><div class="aux-value" id="billingState">-</div></article>
+      </section>
+
+      <section class="aux-grid">
+        <article class="aux-card"><div class="aux-label">Ads SDK Bridge</div><div id="adsSdkStatus" class="aux-value">-</div></article>
+        <article class="aux-card"><div class="aux-label">Billing SDK Bridge</div><div id="billingSdkStatus" class="aux-value">-</div></article>
+        <article class="aux-card"><div class="aux-label">Render SDK Bridge</div><div id="renderSdkStatus" class="aux-value">-</div></article>
+        <article class="aux-card"><div class="aux-label">SDK Key Bundle</div><div id="sdkBundleStatus" class="aux-value mono">-</div><p class="aux-sub" id="sdkBundleSource" style="margin-top:6px">source: -</p></article>
+      </section>
+
+      <section class="aux-grid">
+        <article class="aux-card">
+          <div class="aux-label">Expiry Alert Window</div>
+          <div id="expiryAlertStatus" class="aux-value">-</div>
+          <p class="aux-sub" id="expiryAlertDetail" style="margin-top:6px">-</p>
+        </article>
+        <article class="aux-card">
+          <div class="aux-label">Signature Verification Failure Rate (1h)</div>
+          <div id="sigFailureRate" class="aux-value">-</div>
+          <p class="aux-sub" id="sigFailureDetail" style="margin-top:6px">-</p>
+        </article>
+      </section>
+
+      <section class="aux-grid">
+        <article class="aux-card">
+          <div class="aux-label">Backend Analytics Summary (1h)</div>
+          <div id="backendSummaryStatus" class="aux-value">-</div>
+          <p class="aux-sub" id="backendSummaryDetail" style="margin-top:6px">-</p>
+        </article>
+      </section>
+
+      <section class="aux-card">
+        <div class="aux-label">Recent Funnel Events (Top 20)</div>
+        <table class="aux-table">
+          <thead><tr><th>Time</th><th>Event</th><th>Payload</th></tr></thead>
+          <tbody id="eventRows"></tbody>
+        </table>
+      </section>
+    </main>
+
+    <script>
+      const SDK_KEYS_JWS_PUBLIC_JWK = {
+        kty: 'RSA',
+        n: 'vpT4zNBwo8oJoG9ZOKOMNEf3KQ_-S4snOrLuqqRXzvxcwoKh_nWOPN_cHUsi2gJbrLiqY4u7D9r4oTjV6FbNbRUE01VE1q1pPjpn7-7H6Gl2SmnNlhoV4RbLGcbEsutgB59p_DIZgrBBFSLtz37aptSsp6x0rMwRKMvSlOY-O16aCvFH661tcf1-x51a3Ho_YdhxW4FydBnmO5Dt_ALlziNEsJIlCesokbwwWrd9mcL6xc-K6N90kLl8zWpa_l5v9LAbLtOCXhcP8emGdS4SjlmfnMuUtKT35dbCGG4cjeDSoL22wz66TNBb43XgtajihuSQme3YWhF0UqR3nbUP3w',
+        e: 'AQAB',
+        alg: 'RS256',
+        use: 'sig',
+        kid: 'loopic-dev-rs256-v1',
+      };
+      let latestBundleFromApi = null;
+
+      const funnelNames = new Set([
+        'paywall_viewed','paywall_plan_selected','purchase_started','purchase_succeeded','purchase_failed',
+        'purchase_restore_started','purchase_restore_succeeded','purchase_restore_failed',
+        'ad_gate_opened','ad_started','ad_reward_granted','ad_canceled','ad_failed','ad_gate_completed',
+        'retention_d1','retention_d3','retention_d7','export_generation_started','export_generation_succeeded','export_generation_failed','sdk_key_bundle_loaded','sdk_key_bundle_load_failed'
+      ]);
+
+      const parseJSON = (key, fallback) => {
+        try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; }
+        catch { return fallback; }
+      };
+
+      const statusEl = (id, text, cls='') => {
+        const el = document.getElementById(id);
+        el.textContent = text;
+        el.className = `aux-value ${cls}`.trim();
+      };
+
+      const decodeBase64Url = (value) => {
+        const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+        const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
+        const binary = atob(padded);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+        return bytes;
+      };
+      const decodeJson = (value) => JSON.parse(new TextDecoder().decode(decodeBase64Url(value)));
+
+
+      function updateExpiryMonitoring(cachedBundle) {
+        const bundle = cachedBundle?.bundle || latestBundleFromApi || null;
+        const sections = ['ads', 'billing', 'render'];
+        const warnInMs = 14 * 24 * 60 * 60 * 1000;
+        const now = Date.now();
+        const expiring = [];
+        sections.forEach((name) => {
+          const expiry = bundle?.[name]?.expiresAt;
+          if (!expiry) return;
+          const diff = new Date(expiry).getTime() - now;
+          if (Number.isFinite(diff) && diff <= warnInMs) {
+            expiring.push({ name, diffDays: Math.ceil(diff / (24 * 60 * 60 * 1000)), expiry });
+          }
+        });
+
+        if (!expiring.length) {
+          statusEl('expiryAlertStatus', 'stable', 'ok');
+          document.getElementById('expiryAlertDetail').textContent = '14일 이내 만료 대상 없음';
+          return;
+        }
+
+        const critical = expiring.some((v) => v.diffDays <= 0);
+        statusEl('expiryAlertStatus', critical ? 'critical' : 'warning', critical ? 'bad' : 'warn');
+        document.getElementById('expiryAlertDetail').textContent = expiring
+          .map((v) => `${v.name}:${v.diffDays}d (${new Date(v.expiry).toLocaleDateString()})`)
+          .join(' | ');
+      }
+
+      function updateSignatureFailureMonitoring() {
+        const monitor = parseJSON('sdkKeyMonitoring', { attempts: [] });
+        const attempts = Array.isArray(monitor?.attempts) ? monitor.attempts : [];
+        const oneHourAgo = Date.now() - (60 * 60 * 1000);
+        const recent = attempts.filter((a) => new Date(a.at).getTime() >= oneHourAgo);
+        const total = recent.length;
+        const failures = recent.filter((a) => a.status === 'failure').length;
+        const rate = total ? (failures / total) * 100 : 0;
+
+        let cls = 'ok';
+        if (rate >= 20) cls = 'bad';
+        else if (rate >= 5) cls = 'warn';
+
+        statusEl('sigFailureRate', `${rate.toFixed(1)}%`, cls);
+        const lastFail = recent.find((a) => a.status === 'failure');
+        document.getElementById('sigFailureDetail').textContent = `samples:${total} failures:${failures} last:${lastFail?.code || '-'}`;
+      }
+
+      async function verifySignedEnvelope(envelope) {
+        const verifyKey = await crypto.subtle.importKey('jwk', SDK_KEYS_JWS_PUBLIC_JWK, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['verify']);
+        const verified = await crypto.subtle.verify(
+          'RSASSA-PKCS1-v1_5',
+          verifyKey,
+          decodeBase64Url(envelope.signature),
+          new TextEncoder().encode(`${envelope.protected}.${envelope.payload}`),
+        );
+        if (!verified) throw new Error('invalid_signature');
+        const header = decodeJson(envelope.protected);
+        if (header.kid !== SDK_KEYS_JWS_PUBLIC_JWK.kid || header.alg !== 'RS256') throw new Error('invalid_header');
+        return decodeJson(envelope.payload);
+      }
+
+
+      async function loadBackendAnalyticsSummary() {
+        const token = localStorage.getItem('sdkKeyAccessToken') || '';
+        if (!token) {
+          statusEl('backendSummaryStatus', 'no token', 'warn');
+          document.getElementById('backendSummaryDetail').textContent = 'sdkKeyAccessToken 필요';
+          return;
+        }
+        try {
+          const res = await fetch('/api/analytics-summary', {
+            headers: { Authorization: `Bearer ${token}` },
+            cache: 'no-store',
+          });
+          if (!res.ok) throw new Error('backend_summary_unavailable');
+          const summary = await res.json();
+          const fr = summary?.failureRates || {};
+          const severe = (fr.purchaseFailedPct || 0) >= 20 || (fr.adFailedPct || 0) >= 20 || (fr.sdkBundleLoadFailedPct || 0) >= 20;
+          const warn = (fr.purchaseFailedPct || 0) >= 5 || (fr.adFailedPct || 0) >= 5 || (fr.sdkBundleLoadFailedPct || 0) >= 5;
+          statusEl('backendSummaryStatus', `events:${summary?.total || 0}`, severe ? 'bad' : (warn ? 'warn' : 'ok'));
+          document.getElementById('backendSummaryDetail').textContent = `purchaseFail:${fr.purchaseFailedPct || 0}% adFail:${fr.adFailedPct || 0}% sdkFail:${fr.sdkBundleLoadFailedPct || 0}%`;
+        } catch {
+          statusEl('backendSummaryStatus', 'unavailable', 'warn');
+          document.getElementById('backendSummaryDetail').textContent = 'server analytics-summary 호출 실패';
+        }
+      }
+
+      async function loadKeyBundleStatus() {
+        try {
+          const token = localStorage.getItem('sdkKeyAccessToken') || '';
+          const headers = token ? { Authorization: `Bearer ${token}` } : {};
+          const res = await fetch('/api/sdk-keys', { cache: 'no-store', headers });
+          if (!res.ok) throw new Error('sdk_keys_api_unavailable');
+          const envelope = await res.json();
+          const claims = await verifySignedEnvelope(envelope);
+          const cfg = claims.bundle || {};
+          latestBundleFromApi = cfg;
+          const adsVer = cfg?.ads?.version || 'n/a';
+          const billingVer = cfg?.billing?.version || 'n/a';
+          const renderVer = cfg?.render?.version || 'n/a';
+          const expired = [cfg?.ads?.expiresAt, cfg?.billing?.expiresAt, cfg?.render?.expiresAt]
+            .filter(Boolean)
+            .some((d) => new Date(d).getTime() <= Date.now());
+          statusEl('sdkBundleStatus', `ads:${adsVer} bill:${billingVer} render:${renderVer}`, expired ? 'warn' : 'ok');
+        } catch {
+          statusEl('sdkBundleStatus', 'signed bundle unavailable', 'bad');
+        }
+      }
+
+      function render() {
+        const events = parseJSON('analyticsEvents', []);
+        const milestones = parseJSON('analyticsMilestones', { D1:false, D3:false, D7:false });
+        const billing = parseJSON('billingLastSubscription', null);
+        const cachedBundle = parseJSON('sdkKeyBundleCache', null);
+
+        statusEl('queueSize', String(events.length), events.length > 0 ? 'ok' : 'warn');
+        statusEl('latestEvent', events.length ? events[events.length - 1].eventName : '-', events.length ? 'ok' : 'warn');
+        statusEl('retentionState', `D1:${milestones.D1?'Y':'N'} D3:${milestones.D3?'Y':'N'} D7:${milestones.D7?'Y':'N'}`, 'ok');
+        statusEl('billingState', billing?.productId || 'none', billing ? 'ok' : 'warn');
+
+        statusEl('adsSdkStatus', window.LoopicAdsSDK || window.AdsSDK ? 'connected' : 'not detected', window.LoopicAdsSDK || window.AdsSDK ? 'ok':'warn');
+        statusEl('billingSdkStatus', window.LoopicBillingSDK || window.BillingSDK ? 'connected' : 'not detected', window.LoopicBillingSDK || window.BillingSDK ? 'ok':'warn');
+        statusEl('renderSdkStatus', window.LoopicRenderSDK || window.RenderSDK ? 'connected' : 'not detected', window.LoopicRenderSDK || window.RenderSDK ? 'ok':'warn');
+        document.getElementById('sdkBundleSource').textContent = `source: ${cachedBundle?.source || 'unknown'} | kid: ${cachedBundle?.signatureKid || '-'} | loadedAt: ${cachedBundle?.at ? new Date(cachedBundle.at).toLocaleString() : '-'}`;
+        updateExpiryMonitoring(cachedBundle);
+        updateSignatureFailureMonitoring();
+
+        const rows = events.filter((e) => funnelNames.has(e.eventName)).slice(-20).reverse();
+        const tbody = document.getElementById('eventRows');
+        tbody.innerHTML = rows.map((e) => `
+          <tr>
+            <td>${new Date(e.at).toLocaleString()}</td>
+            <td><span class="aux-code">${e.eventName}</span></td>
+            <td class="mono">${JSON.stringify(e.payload || {}).slice(0, 180)}</td>
+          </tr>
+        `).join('') || '<tr><td colspan="3">No funnel events yet.</td></tr>';
+      }
+
+      document.getElementById('refreshBtn').addEventListener('click', async () => {
+        render();
+        await loadKeyBundleStatus();
+        await loadBackendAnalyticsSummary();
+      });
+      document.getElementById('clearEventsBtn').addEventListener('click', () => {
+        localStorage.removeItem('analyticsEvents');
+        render();
+      });
+
+      render();
+      loadKeyBundleStatus();
+      loadBackendAnalyticsSummary();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Loopic - Time Projects</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div id="app" class="app-shell">
+      <header class="top-bar">
+        <div class="brand-wrap">
+          <span class="brand-icon material-symbols-outlined">timelapse</span>
+          <div>
+            <p class="eyebrow">time projects</p>
+            <h1 id="screenTitle">Loopic</h1>
+          </div>
+        </div>
+        <button id="openSettings" class="icon-btn material-symbols-outlined">settings</button>
+      </header>
+
+      <main id="main"></main>
+
+      <button id="fab" class="fab hidden material-symbols-outlined">add</button>
+
+      <nav id="bottomNav" class="bottom-nav hidden">
+        <button data-screen="home" class="nav-btn active">
+          <span class="material-symbols-outlined">grid_view</span><small>Albums</small>
+        </button>
+        <button data-screen="camera" class="nav-btn">
+          <span class="material-symbols-outlined">photo_camera</span><small>Camera</small>
+        </button>
+        <button data-screen="timeline" class="nav-btn">
+          <span class="material-symbols-outlined">calendar_month</span><small>Calendar</small>
+        </button>
+        <button data-screen="export" class="nav-btn">
+          <span class="material-symbols-outlined">movie</span><small>Export</small>
+        </button>
+      </nav>
+    </div>
+
+    <div id="toast" class="toast hidden"></div>
+    <div id="modalBackdrop" class="modal-backdrop hidden"><div id="modal" class="modal"></div></div>
+    <script src="app.js"></script>
+  </body>
+</html>
