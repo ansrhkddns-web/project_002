@@ -38,6 +38,7 @@
 - Firebase Test Lab 기반 Android 실기기 QA 워크플로 추가(.github/workflows/android-real-device-qa.yml)
 - Android release workflow 초안 추가(.github/workflows/android-release.yml)
 - Play Console 업로드 workflow 단계 추가(optional secrets 기반)
+- Play 업로드 검증 리포트 자동 생성 추가(play-upload-verification-report.sh)
 - Alert dispatch 스모크 스크립트 추가(alert-channel-smoke.sh)
 
 ## 🔄 남은 작업

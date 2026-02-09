@@ -7,6 +7,8 @@ on:
     paths:
       - 'android/**'
       - 'scripts/android-sync-assets.sh'
+      - 'scripts/play-upload-verification-report.sh'
+      - '.github/workflows/android-release.yml'
       - 'index.html'
       - 'app.js'
       - 'styles.css'
@@ -61,6 +63,7 @@ jobs:
           path: android/app/build/outputs/bundle/release/app-release.aab
 
       - name: Upload to Google Play (optional)
+        id: upload_play
         if: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON != '' }}
         uses: r0adkll/upload-google-play@v1
         with:
@@ -69,3 +72,31 @@ jobs:
           releaseFiles: android/app/build/outputs/bundle/release/app-release.aab
           track: ${{ env.PLAY_TRACK }}
           status: completed
+
+      - name: Write Play upload verification report (PASS)
+        if: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON != '' }}
+        env:
+          STATUS: PASS
+          REASON: play_upload_step_completed
+          PACKAGE_NAME: ${{ env.PACKAGE_NAME }}
+          PLAY_TRACK: ${{ env.PLAY_TRACK }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: ./scripts/play-upload-verification-report.sh
+
+      - name: Write Play upload verification report (FAIL - missing secrets)
+        if: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON == '' }}
+        env:
+          STATUS: FAIL
+          REASON: missing_play_service_account_secret
+          PACKAGE_NAME: ${{ env.PACKAGE_NAME }}
+          PLAY_TRACK: ${{ env.PLAY_TRACK }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: ./scripts/play-upload-verification-report.sh
+
+      - name: Upload Play verification report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: play-upload-verification-report
+          path: docs/play_upload_verification_last_run.md

@@ -36,6 +36,7 @@
   - [x] GitHub Actions release workflow 초안 추가 (`.github/workflows/android-release.yml`)
   - [x] Play Console 업로드 자동화(서비스 계정) 연결 워크플로 단계 추가 (`Upload to Google Play` optional step)
   - [ ] 운영 시크릿 주입 후 실제 업로드 검증
+  - [x] 업로드 검증 리포트 자동 생성 스크립트/아티팩트 추가 (`scripts/play-upload-verification-report.sh`, `docs/play_upload_verification_last_run.md`)
 
 ## 바로 확인 명령어
 ```bash

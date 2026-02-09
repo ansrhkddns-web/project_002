@@ -14,7 +14,8 @@
     "android:install": "cd android && gradle installDebug",
     "android:qa-device": "./scripts/android-device-qa.sh",
     "alerts:smoke": "./scripts/alert-channel-smoke.sh",
-    "android:qa-real-device:note": "echo \"Run GitHub Actions workflow: .github/workflows/android-real-device-qa.yml\""
+    "android:qa-real-device:note": "echo \"Run GitHub Actions workflow: .github/workflows/android-real-device-qa.yml\"",
+    "play:verify:report:local": "STATUS=FAIL REASON=missing_play_service_account_secret PACKAGE_NAME=com.timeflow.app PLAY_TRACK=internal RUN_ID=local RUN_URL=local ./scripts/play-upload-verification-report.sh"
   },
   "keywords": [],
   "author": "",

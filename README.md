@@ -107,6 +107,7 @@ npm run android:install
 - GitHub Actions: `.github/workflows/android-release.yml`
 - 수행 항목: 웹에셋 동기화 → `bundleRelease` → (선택) keystore signing → AAB artifact 업로드 → (선택) Play Console 업로드
 - Play 업로드는 `PLAY_SERVICE_ACCOUNT_JSON` 시크릿이 있을 때만 실행됩니다.
+- 업로드 검증 결과는 `docs/play_upload_verification_last_run.md`로 아티팩트화됩니다.
 
 ## Alert 채널 스모크 테스트
 ```bash
