@@ -31,6 +31,7 @@
 - 서버측 접근 제어 고도화(server.js: Bearer + Origin allowlist + rate-limit + direct access 차단)
 - 운영 대시보드 경보 규칙 연계(만료 임박 + 서명 검증 실패율 1h)
 - Android 빌드 가능 구조 추가(android WebView 프로젝트 + assets sync 스크립트)
+- 서버 분석 집계 API/운영 대시보드 백엔드 연동(/api/analytics-events, /api/analytics-summary)
 
 ## 🔄 남은 작업
 - (현재 기준 핵심 기능 작업 완료, 운영 고도화 단계)

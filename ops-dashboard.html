@@ -45,6 +45,14 @@
         </article>
       </section>
 
+      <section class="aux-grid">
+        <article class="aux-card">
+          <div class="aux-label">Backend Analytics Summary (1h)</div>
+          <div id="backendSummaryStatus" class="aux-value">-</div>
+          <p class="aux-sub" id="backendSummaryDetail" style="margin-top:6px">-</p>
+        </article>
+      </section>
+
       <section class="aux-card">
         <div class="aux-label">Recent Funnel Events (Top 20)</div>
         <table class="aux-table">
@@ -154,6 +162,32 @@
         return decodeJson(envelope.payload);
       }
 
+
+      async function loadBackendAnalyticsSummary() {
+        const token = localStorage.getItem('sdkKeyAccessToken') || '';
+        if (!token) {
+          statusEl('backendSummaryStatus', 'no token', 'warn');
+          document.getElementById('backendSummaryDetail').textContent = 'sdkKeyAccessToken 필요';
+          return;
+        }
+        try {
+          const res = await fetch('/api/analytics-summary', {
+            headers: { Authorization: `Bearer ${token}` },
+            cache: 'no-store',
+          });
+          if (!res.ok) throw new Error('backend_summary_unavailable');
+          const summary = await res.json();
+          const fr = summary?.failureRates || {};
+          const severe = (fr.purchaseFailedPct || 0) >= 20 || (fr.adFailedPct || 0) >= 20 || (fr.sdkBundleLoadFailedPct || 0) >= 20;
+          const warn = (fr.purchaseFailedPct || 0) >= 5 || (fr.adFailedPct || 0) >= 5 || (fr.sdkBundleLoadFailedPct || 0) >= 5;
+          statusEl('backendSummaryStatus', `events:${summary?.total || 0}`, severe ? 'bad' : (warn ? 'warn' : 'ok'));
+          document.getElementById('backendSummaryDetail').textContent = `purchaseFail:${fr.purchaseFailedPct || 0}% adFail:${fr.adFailedPct || 0}% sdkFail:${fr.sdkBundleLoadFailedPct || 0}%`;
+        } catch {
+          statusEl('backendSummaryStatus', 'unavailable', 'warn');
+          document.getElementById('backendSummaryDetail').textContent = 'server analytics-summary 호출 실패';
+        }
+      }
+
       async function loadKeyBundleStatus() {
         try {
           const token = localStorage.getItem('sdkKeyAccessToken') || '';
@@ -208,6 +242,7 @@
       document.getElementById('refreshBtn').addEventListener('click', async () => {
         render();
         await loadKeyBundleStatus();
+        await loadBackendAnalyticsSummary();
       });
       document.getElementById('clearEventsBtn').addEventListener('click', () => {
         localStorage.removeItem('analyticsEvents');
@@ -216,6 +251,7 @@
 
       render();
       loadKeyBundleStatus();
+      loadBackendAnalyticsSummary();
     </script>
   </body>
 </html>

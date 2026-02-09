@@ -780,6 +780,8 @@ const AnalyticsService = {
   queueKey: 'analyticsEvents',
   installKey: 'analyticsInstallAt',
   milestoneKey: 'analyticsMilestones',
+  ingestTokenKey: 'analyticsIngestToken',
+  lastFlushKey: 'analyticsLastFlushAt',
   sdk() {
     return window.LoopicAnalyticsSDK || window.AnalyticsSDK || null;
   },
@@ -810,7 +812,12 @@ const AnalyticsService = {
     localStorage.setItem(this.milestoneKey, JSON.stringify(m));
   },
   enqueue(eventName, payload = {}) {
-    const event = { eventName, payload, at: this.nowIso() };
+    const event = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+      eventName,
+      payload,
+      at: this.nowIso(),
+    };
     const sdk = this.sdk();
     if (sdk?.track) {
       try { sdk.track(eventName, payload); } catch { /* noop */ }
@@ -851,6 +858,40 @@ const AnalyticsService = {
       m.D7 = true;
     }
     this.saveMilestones(m);
+  },
+
+  ingestToken() {
+    return window.__ANALYTICS_INGEST_TOKEN || localStorage.getItem(this.ingestTokenKey) || '';
+  },
+  async flushToServer() {
+    if (!appRuntime.isOnline) return;
+    const token = this.ingestToken();
+    if (!token) return;
+
+    let queue = [];
+    try {
+      const raw = localStorage.getItem(this.queueKey);
+      queue = raw ? JSON.parse(raw) : [];
+    } catch {
+      return;
+    }
+    if (!Array.isArray(queue) || queue.length === 0) return;
+
+    const events = queue.slice(-120);
+    try {
+      const res = await fetch('/api/analytics-events', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ events }),
+      });
+      if (!res.ok) throw new Error('analytics_ingest_failed');
+      localStorage.setItem(this.lastFlushKey, this.nowIso());
+    } catch {
+      // stay non-blocking on ingestion failures
+    }
   },
   boot() {
     if (appRuntime.analyticsSessionStarted) return;
@@ -1700,6 +1741,10 @@ function attachGlobal() {
   });
   KeyRotationService.startAutoRefresh().catch(() => {});
   AnalyticsService.boot();
+  AnalyticsService.flushToServer().catch(() => {});
+  setInterval(() => {
+    AnalyticsService.flushToServer().catch(() => {});
+  }, 60 * 1000);
 }
 
 function render() {

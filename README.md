@@ -19,6 +19,7 @@ python3 -m http.server 4173
 node server.js
 # 브라우저에서 http://localhost:4173
 # /api/sdk-keys 호출 시 Authorization: Bearer loopic-ops-dev-token 필요
+# /api/analytics-events 수집 토큰 기본값: loopic-analytics-dev-token
 ```
 
 브라우저 콘솔에서 토큰 주입(프로토타입용):
@@ -80,3 +81,9 @@ npm run android:install
 ## 운영 대시보드 모니터링 규칙
 - 만료 임박 경보: ads/billing/render `expiresAt`가 14일 이내면 `warning`, 이미 만료면 `critical`로 표기.
 - 서명 검증 실패율(1h): 최근 1시간 `sdkKeyMonitoring` 시도 기준 실패율 5% 이상 `warn`, 20% 이상 `bad`.
+
+
+## 서버 분석 집계/알림(신규)
+- 클라이언트는 `analyticsIngestToken`(localStorage) 또는 `window.__ANALYTICS_INGEST_TOKEN`으로 `/api/analytics-events`에 이벤트를 전송합니다.
+- Ops 대시보드는 `/api/analytics-summary`(Bearer 필요)에서 최근 1시간 실패율을 조회합니다.
+- `ALERT_WEBHOOK_URL` 환경변수를 설정하면 실패율(20% 이상) 시 webhook 알림을 보냅니다.

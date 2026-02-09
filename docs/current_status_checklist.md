@@ -23,7 +23,9 @@
 ## ❌ Not Done (미완료)
 - [ ] Android 실기기 통합 QA (카메라 권한/촬영/오디오/WebView 정책)
 - [ ] 외부 알림 채널 연동 (Slack/메일/PagerDuty)
-- [ ] 운영 백엔드 기반 대시보드 집계 전환 (현재 localStorage 기반)
+  - [x] webhook 기반 서버 알림 훅 추가 (`ALERT_WEBHOOK_URL`)
+  - [ ] 실제 Slack/메일/PagerDuty 운영 라우팅 연결
+- [x] 운영 백엔드 기반 대시보드 집계 API 추가 (`/api/analytics-events`, `/api/analytics-summary`)
 - [ ] Play 배포용 서명/릴리즈 파이프라인 (AAB 서명, CI 배포)
 
 ## 바로 확인 명령어
