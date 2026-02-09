@@ -17,12 +17,20 @@ const ALERT_PAGERDUTY_EVENTS_URL = (process.env.ALERT_PAGERDUTY_EVENTS_URL || 'h
 const ALERT_PAGERDUTY_ROUTING_KEY = (process.env.ALERT_PAGERDUTY_ROUTING_KEY || '').trim();
 const ALERT_EMAIL_WEBHOOK_URL = (process.env.ALERT_EMAIL_WEBHOOK_URL || '').trim();
 const ALERT_EMAIL_TO = (process.env.ALERT_EMAIL_TO || '').trim();
+const SECRETS_PROXY_BACKEND_URL = (process.env.SECRETS_PROXY_BACKEND_URL || '').trim();
+const SECRETS_PROXY_BACKEND_TOKEN = (process.env.SECRETS_PROXY_BACKEND_TOKEN || '').trim();
+const KEY_EXPIRY_ALERT_WINDOW_DAYS = Number(process.env.KEY_EXPIRY_ALERT_WINDOW_DAYS || 14);
 
 const ipHits = new Map();
 const analyticsStore = {
   events: [],
   ids: new Set(),
   lastAlertAt: 0,
+};
+
+const bundleMonitor = {
+  lastExpiryAlertAt: 0,
+  lastExpiryFingerprint: '',
 };
 
 const MIME = {
@@ -220,6 +228,93 @@ async function sendAlertIfNeeded(summary) {
   }
 }
 
+function decodeBase64UrlToJson(input) {
+  const parsed = Buffer.from(input, 'base64url').toString('utf8');
+  return JSON.parse(parsed);
+}
+
+function expiringSectionsFromEnvelope(envelope) {
+  try {
+    const payload = decodeBase64UrlToJson(envelope.payload || '');
+    const bundle = payload?.bundle || {};
+    const now = Date.now();
+    const warnMs = KEY_EXPIRY_ALERT_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+    const sections = ['ads', 'billing', 'render'];
+    return sections
+      .map((name) => {
+        const expiry = bundle?.[name]?.expiresAt;
+        if (!expiry) return null;
+        const diffMs = new Date(expiry).getTime() - now;
+        if (!Number.isFinite(diffMs) || diffMs > warnMs) return null;
+        return {
+          name,
+          expiresAt: expiry,
+          diffDays: Math.ceil(diffMs / (24 * 60 * 60 * 1000)),
+        };
+      })
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+async function dispatchOperationalAlert(payload) {
+  const tasks = [];
+  if (ALERT_WEBHOOK_URL) tasks.push(postJson(ALERT_WEBHOOK_URL, payload));
+  if (ALERT_SLACK_WEBHOOK_URL) {
+    tasks.push(postJson(ALERT_SLACK_WEBHOOK_URL, {
+      text: `[timeflow] ${payload.type} ${JSON.stringify(payload.details || {})}`,
+    }));
+  }
+  if (ALERT_EMAIL_WEBHOOK_URL && ALERT_EMAIL_TO) {
+    tasks.push(postJson(ALERT_EMAIL_WEBHOOK_URL, {
+      to: ALERT_EMAIL_TO,
+      subject: `[timeflow] ${payload.type}`,
+      body: JSON.stringify(payload),
+    }));
+  }
+  await Promise.allSettled(tasks);
+}
+
+async function maybeAlertKeyExpiry(envelope) {
+  const expiring = expiringSectionsFromEnvelope(envelope);
+  if (expiring.length === 0) return;
+
+  const fingerprint = expiring.map((v) => `${v.name}:${v.expiresAt}`).join('|');
+  const coolDownMs = 60 * 60 * 1000;
+  if (bundleMonitor.lastExpiryFingerprint === fingerprint && (Date.now() - bundleMonitor.lastExpiryAlertAt < coolDownMs)) {
+    return;
+  }
+
+  bundleMonitor.lastExpiryFingerprint = fingerprint;
+  bundleMonitor.lastExpiryAlertAt = Date.now();
+  await dispatchOperationalAlert({
+    source: 'timeflow-server',
+    type: 'sdk_key_expiry_warning',
+    details: {
+      windowDays: KEY_EXPIRY_ALERT_WINDOW_DAYS,
+      expiring,
+    },
+    at: new Date().toISOString(),
+  });
+}
+
+async function loadSignedBundle() {
+  if (SECRETS_PROXY_BACKEND_URL) {
+    const headers = { 'Content-Type': 'application/json' };
+    if (SECRETS_PROXY_BACKEND_TOKEN) {
+      headers.Authorization = `Bearer ${SECRETS_PROXY_BACKEND_TOKEN}`;
+    }
+
+    const res = await fetch(SECRETS_PROXY_BACKEND_URL, { headers, cache: 'no-store' });
+    if (!res.ok) throw new Error('secrets_backend_unavailable');
+    const body = await res.text();
+    return body;
+  }
+
+  return fs.readFileSync(BUNDLE_FILE, 'utf8');
+}
+
 function serveStatic(req, res, pathname) {
   const safePath = path.normalize(pathname).replace(/^([.][.][/\\])+/, '');
   const filePath = path.join(ROOT, safePath === '/' ? 'index.html' : safePath);
@@ -236,21 +331,31 @@ function serveStatic(req, res, pathname) {
   });
 }
 
-function serveSignedBundle(req, res) {
+async function serveSignedBundle(req, res) {
   const ip = req.socket.remoteAddress || 'unknown';
   if (limited(ip)) return json(res, 429, { error: 'rate_limited' });
   if (!hasOriginAccess(req)) return json(res, 403, { error: 'origin_forbidden' });
   if (!hasSdkToken(req)) return json(res, 401, { error: 'unauthorized' }, { 'WWW-Authenticate': 'Bearer realm="sdk-keys"' });
 
-  fs.readFile(BUNDLE_FILE, (err, data) => {
-    if (err) return json(res, 500, { error: 'bundle_unavailable' });
-    send(res, 200, data, {
+  try {
+    const body = await loadSignedBundle();
+    try {
+      const envelope = JSON.parse(body);
+      await maybeAlertKeyExpiry(envelope);
+    } catch {
+      // keep bundle serving non-blocking
+    }
+
+    return send(res, 200, body, {
       'Content-Type': 'application/json; charset=utf-8',
       'Cache-Control': 'no-store, no-cache, must-revalidate',
       Pragma: 'no-cache',
     });
-  });
+  } catch {
+    return json(res, 500, { error: 'bundle_unavailable' });
+  }
 }
+
 
 async function ingestAnalytics(req, res) {
   if (!hasAnalyticsToken(req)) return json(res, 401, { error: 'unauthorized' });
@@ -324,4 +429,5 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log('[server] Use Authorization: Bearer <token> for /api/sdk-keys');
   console.log('[server] Use Authorization: Bearer <token> for /api/analytics-events and /api/analytics-summary');
   console.log('[server] Alert channels: ALERT_WEBHOOK_URL / ALERT_SLACK_WEBHOOK_URL / ALERT_PAGERDUTY_ROUTING_KEY / ALERT_EMAIL_WEBHOOK_URL');
+  console.log('[server] Secrets backend (optional): SECRETS_PROXY_BACKEND_URL');
 });
