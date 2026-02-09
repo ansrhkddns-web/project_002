@@ -35,6 +35,8 @@
 - Android 실기기 QA 체크리스트/자동화 스크립트 추가(android-device-qa.sh + 문서)
 - Android QA 최근 실행 리포트 자동 기록(docs/android_device_qa_last_run.md)
 - Android release workflow 초안 추가(.github/workflows/android-release.yml)
+- Play Console 업로드 workflow 단계 추가(optional secrets 기반)
+- Alert dispatch 스모크 스크립트 추가(alert-channel-smoke.sh)
 
 ## 🔄 남은 작업
 - (현재 기준 핵심 기능 작업 완료, 운영 고도화 단계)

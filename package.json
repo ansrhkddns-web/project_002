@@ -12,7 +12,8 @@
     "android:sync": "./scripts/android-sync-assets.sh",
     "android:debug": "cd android && gradle assembleDebug",
     "android:install": "cd android && gradle installDebug",
-    "android:qa-device": "./scripts/android-device-qa.sh"
+    "android:qa-device": "./scripts/android-device-qa.sh",
+    "alerts:smoke": "./scripts/alert-channel-smoke.sh"
   },
   "keywords": [],
   "author": "",

@@ -105,5 +105,11 @@ npm run android:install
 
 ## Android 릴리즈 파이프라인(초안)
 - GitHub Actions: `.github/workflows/android-release.yml`
-- 수행 항목: 웹에셋 동기화 → `bundleRelease` → (선택) keystore signing → AAB artifact 업로드
-- 남은 작업: Play Console 업로드 자동화(서비스 계정 키/트랙 전략)
+- 수행 항목: 웹에셋 동기화 → `bundleRelease` → (선택) keystore signing → AAB artifact 업로드 → (선택) Play Console 업로드
+- Play 업로드는 `PLAY_SERVICE_ACCOUNT_JSON` 시크릿이 있을 때만 실행됩니다.
+
+## Alert 채널 스모크 테스트
+```bash
+npm run alerts:smoke
+```
+- 목적: 서버 alert dispatch 경로 실행 확인(실제 Slack/PagerDuty/Email 전달 성공은 운영 시크릿/외부 시스템 상태에 따름)

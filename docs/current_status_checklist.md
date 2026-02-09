@@ -28,10 +28,12 @@
   - [x] webhook 기반 서버 알림 훅 추가 (`ALERT_WEBHOOK_URL`)
   - [x] 채널별 라우팅 환경변수 추가 (`ALERT_SLACK_WEBHOOK_URL`, `ALERT_PAGERDUTY_ROUTING_KEY`, `ALERT_EMAIL_WEBHOOK_URL`)
   - [ ] 실제 Slack/메일/PagerDuty 운영 라우팅 연결
+  - [x] 로컬 alert dispatch 스모크 스크립트 추가 (`scripts/alert-channel-smoke.sh`)
 - [x] 운영 백엔드 기반 대시보드 집계 API 추가 (`/api/analytics-events`, `/api/analytics-summary`)
 - [ ] Play 배포용 서명/릴리즈 파이프라인 (AAB 서명, CI 배포)
   - [x] GitHub Actions release workflow 초안 추가 (`.github/workflows/android-release.yml`)
-  - [ ] Play Console 업로드 자동화(서비스 계정) 연결
+  - [x] Play Console 업로드 자동화(서비스 계정) 연결 워크플로 단계 추가 (`Upload to Google Play` optional step)
+  - [ ] 운영 시크릿 주입 후 실제 업로드 검증
 
 ## 바로 확인 명령어
 ```bash
