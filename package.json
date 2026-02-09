@@ -13,7 +13,8 @@
     "android:debug": "cd android && gradle assembleDebug",
     "android:install": "cd android && gradle installDebug",
     "android:qa-device": "./scripts/android-device-qa.sh",
-    "alerts:smoke": "./scripts/alert-channel-smoke.sh"
+    "alerts:smoke": "./scripts/alert-channel-smoke.sh",
+    "android:qa-real-device:note": "echo \"Run GitHub Actions workflow: .github/workflows/android-real-device-qa.yml\""
   },
   "keywords": [],
   "author": "",

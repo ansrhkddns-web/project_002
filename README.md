@@ -119,3 +119,9 @@ npm run alerts:smoke
 - 워크플로: `.github/workflows/android-device-qa.yml`
 - 수행 항목: assets sync → debug APK 빌드 → 에뮬레이터 기동 → `android-device-qa.sh` 실행 → QA 리포트 업로드
 - 참고: 실기기 Pass 판정은 별도로 `docs/android_device_qa_last_run.md`에 기록 필요
+
+
+## Android 실기기 QA CI (Firebase Test Lab)
+- 워크플로: `.github/workflows/android-real-device-qa.yml`
+- 요구 시크릿: `GCP_SA_KEY`, `GCP_PROJECT_ID`, `GCP_TESTLAB_RESULTS_BUCKET`
+- 동작: APK 빌드 → Firebase Test Lab robo run → `docs/android_device_qa_last_run.md` 리포트 생성

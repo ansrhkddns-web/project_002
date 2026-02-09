@@ -21,9 +21,10 @@
     - 사유: 저장소/플러그인 해석 제한으로 AGP 아티팩트 resolve 실패 가능
 
 ## ❌ Not Done (미완료)
-- [ ] Android 실기기 통합 QA (카메라 권한/촬영/오디오/WebView 정책)
+- [ ] Android 실기기 통합 QA (카메라 권한/촬영/오디오/WebView 동작)
   - [x] 실기기 QA 체크리스트 문서/자동화 스크립트 추가 (`docs/android_device_qa_checklist.md`, `scripts/android-device-qa.sh`)
   - [x] CI 에뮬레이터 QA 워크플로 추가 (`.github/workflows/android-device-qa.yml`)
+  - [x] Firebase Test Lab 기반 클라우드 실기기 QA 워크플로 추가 (`.github/workflows/android-real-device-qa.yml`)
   - [ ] 실제 디바이스에서 Pass 판정 기록 (`docs/android_device_qa_last_run.md`)
 - [ ] 외부 알림 채널 연동 (Slack/메일/PagerDuty)
   - [x] webhook 기반 서버 알림 훅 추가 (`ALERT_WEBHOOK_URL`)

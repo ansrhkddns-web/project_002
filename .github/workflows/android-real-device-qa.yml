@@ -1,0 +1,88 @@
+name: android-real-device-qa
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["work"]
+    paths:
+      - 'android/**'
+      - 'scripts/android-sync-assets.sh'
+      - '.github/workflows/android-real-device-qa.yml'
+
+jobs:
+  firebase-test-lab:
+    runs-on: ubuntu-latest
+    env:
+      JAVA_VERSION: '17'
+      GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+      TESTLAB_DEVICE: 'model=oriole,version=34,locale=en,orientation=portrait'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Sync web assets
+        run: ./scripts/android-sync-assets.sh
+
+      - name: Build debug APK
+        run: |
+          cd android
+          gradle assembleDebug
+
+      - name: Authenticate to GCP (optional)
+        if: ${{ secrets.GCP_SA_KEY != '' && secrets.GCP_PROJECT_ID != '' }}
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Setup gcloud SDK (optional)
+        if: ${{ secrets.GCP_SA_KEY != '' && secrets.GCP_PROJECT_ID != '' }}
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Run Firebase Test Lab instrumentation-less smoke (optional)
+        if: ${{ secrets.GCP_SA_KEY != '' && secrets.GCP_PROJECT_ID != '' }}
+        run: |
+          gcloud config set project "$GCP_PROJECT_ID"
+          gcloud firebase test android run \
+            --type robo \
+            --app android/app/build/outputs/apk/debug/app-debug.apk \
+            --device "$TESTLAB_DEVICE" \
+            --timeout 15m \
+            --results-bucket "${{ secrets.GCP_TESTLAB_RESULTS_BUCKET }}" \
+            --results-dir "timeflow/${{ github.run_id }}" \
+            --format json > firebase_testlab_result.json
+
+      - name: Generate QA run report (real device cloud)
+        run: |
+          mkdir -p docs
+          if [[ -f firebase_testlab_result.json ]]; then
+            STATUS="PASS"
+            REASON="firebase_test_lab_run_completed"
+          else
+            STATUS="FAIL"
+            REASON="firebase_test_lab_not_executed_missing_secrets"
+          fi
+          cat > docs/android_device_qa_last_run.md <<RPT
+# Android Device QA Last Run
+
+- startedAt: $(date -Iseconds)
+- finishedAt: $(date -Iseconds)
+- status: ${STATUS}
+- reason: ${REASON}
+- mode: cloud_real_device_firebase_test_lab
+- artifact: firebase_testlab_result.json
+
+## Next Action
+- If FAIL, configure `GCP_SA_KEY`, `GCP_PROJECT_ID`, `GCP_TESTLAB_RESULTS_BUCKET` and re-run workflow.
+RPT
+
+      - name: Upload QA report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-real-device-qa-report
+          path: |
+            docs/android_device_qa_last_run.md
+            firebase_testlab_result.json
