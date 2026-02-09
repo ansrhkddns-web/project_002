@@ -65,6 +65,17 @@ npm run android:install
 - Android Studio > Open > `android/` 선택
 - 에뮬레이터/실기기에서 Run
 
+### 5) Android 실기기 QA 스모크(신규)
+```bash
+# 기본 APK 경로 사용
+./scripts/android-device-qa.sh
+
+# 또는 APK 경로 직접 지정
+./scripts/android-device-qa.sh android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+상세 수동 체크 항목은 `docs/android_device_qa_checklist.md` 참고.
+
 ## 구현 포인트
 - 온보딩 4페이지 + 완료 플래그(localStorage)
 - 하단 탭 내비게이션

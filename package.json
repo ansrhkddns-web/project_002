@@ -11,7 +11,8 @@
     "test:smoke": "./scripts/bug-smoke-test.sh",
     "android:sync": "./scripts/android-sync-assets.sh",
     "android:debug": "cd android && gradle assembleDebug",
-    "android:install": "cd android && gradle installDebug"
+    "android:install": "cd android && gradle installDebug",
+    "android:qa-device": "./scripts/android-device-qa.sh"
   },
   "keywords": [],
   "author": "",
