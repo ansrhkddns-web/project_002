@@ -113,3 +113,9 @@ npm run android:install
 npm run alerts:smoke
 ```
 - 목적: 서버 alert dispatch 경로 실행 확인(실제 Slack/PagerDuty/Email 전달 성공은 운영 시크릿/외부 시스템 상태에 따름)
+
+
+## Android QA CI (에뮬레이터)
+- 워크플로: `.github/workflows/android-device-qa.yml`
+- 수행 항목: assets sync → debug APK 빌드 → 에뮬레이터 기동 → `android-device-qa.sh` 실행 → QA 리포트 업로드
+- 참고: 실기기 Pass 판정은 별도로 `docs/android_device_qa_last_run.md`에 기록 필요
