@@ -65,7 +65,7 @@ jobs:
             STATUS="FAIL"
             REASON="firebase_test_lab_not_executed_missing_secrets"
           fi
-          cat > docs/android_device_qa_last_run.md <<RPT
+          cat > artifacts/qa_reports/android_device_qa_last_run.md <<RPT
 # Android Device QA Last Run
 
 - startedAt: $(date -Iseconds)
@@ -84,5 +84,5 @@ RPT
         with:
           name: android-real-device-qa-report
           path: |
-            docs/android_device_qa_last_run.md
+            artifacts/qa_reports/android_device_qa_last_run.md
             firebase_testlab_result.json

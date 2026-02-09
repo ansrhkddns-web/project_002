@@ -1,13 +1,7 @@
-# Play Upload Verification Last Run
+# Play Upload Verification Last Run (Template)
 
-- startedAt: 2026-02-08T00:19:40+00:00
-- status: FAIL
-- reason: missing_play_service_account_secret
-- packageName: com.timeflow.app
-- track: internal
-- runId: local
-- runUrl: local
+실제 최신 실행 리포트는 기본적으로 아래 경로에 생성됩니다.
 
-## Interpretation
-- PASS means upload workflow step completed with injected production secrets.
-- FAIL means verification was not executed (usually missing secrets in CI environment).
+- `artifacts/qa_reports/play_upload_verification_last_run.md`
+
+> 참고: Android release 워크플로 아티팩트(`play-upload-verification-report`)에서도 확인 가능합니다.

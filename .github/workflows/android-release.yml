@@ -99,4 +99,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: play-upload-verification-report
-          path: docs/play_upload_verification_last_run.md
+          path: artifacts/qa_reports/play_upload_verification_last_run.md

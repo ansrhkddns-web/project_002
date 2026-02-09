@@ -33,7 +33,7 @@
 - Android 빌드 가능 구조 추가(android WebView 프로젝트 + assets sync 스크립트)
 - 서버 분석 집계 API/운영 대시보드 백엔드 연동(/api/analytics-events, /api/analytics-summary)
 - Android 실기기 QA 체크리스트/자동화 스크립트 추가(android-device-qa.sh + 문서)
-- Android QA 최근 실행 리포트 자동 기록(docs/android_device_qa_last_run.md)
+- Android QA 최근 실행 리포트 자동 기록(artifacts/qa_reports/android_device_qa_last_run.md)
 - Android 에뮬레이터 QA 워크플로 추가(.github/workflows/android-device-qa.yml)
 - Firebase Test Lab 기반 Android 실기기 QA 워크플로 추가(.github/workflows/android-real-device-qa.yml)
 - Android release workflow 초안 추가(.github/workflows/android-release.yml)

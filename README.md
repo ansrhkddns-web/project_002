@@ -76,7 +76,7 @@ npm run android:install
 
 상세 수동 체크 항목은 `docs/android_device_qa_checklist.md` 참고.
 
-실행 결과(최근 1회)는 `docs/android_device_qa_last_run.md`에 자동 기록됩니다.
+실행 결과(최근 1회)는 `artifacts/qa_reports/android_device_qa_last_run.md`에 자동 기록됩니다.
 
 ## 구현 포인트
 - 온보딩 4페이지 + 완료 플래그(localStorage)
@@ -107,7 +107,7 @@ npm run android:install
 - GitHub Actions: `.github/workflows/android-release.yml`
 - 수행 항목: 웹에셋 동기화 → `bundleRelease` → (선택) keystore signing → AAB artifact 업로드 → (선택) Play Console 업로드
 - Play 업로드는 `PLAY_SERVICE_ACCOUNT_JSON` 시크릿이 있을 때만 실행됩니다.
-- 업로드 검증 결과는 `docs/play_upload_verification_last_run.md`로 아티팩트화됩니다.
+- 업로드 검증 결과는 `artifacts/qa_reports/play_upload_verification_last_run.md`로 아티팩트화됩니다.
 
 ## Alert 채널 스모크 테스트
 ```bash
@@ -119,10 +119,10 @@ npm run alerts:smoke
 ## Android QA CI (에뮬레이터)
 - 워크플로: `.github/workflows/android-device-qa.yml`
 - 수행 항목: assets sync → debug APK 빌드 → 에뮬레이터 기동 → `android-device-qa.sh` 실행 → QA 리포트 업로드
-- 참고: 실기기 Pass 판정은 별도로 `docs/android_device_qa_last_run.md`에 기록 필요
+- 참고: 실기기 Pass 판정은 별도로 `artifacts/qa_reports/android_device_qa_last_run.md`에 기록 필요
 
 
 ## Android 실기기 QA CI (Firebase Test Lab)
 - 워크플로: `.github/workflows/android-real-device-qa.yml`
 - 요구 시크릿: `GCP_SA_KEY`, `GCP_PROJECT_ID`, `GCP_TESTLAB_RESULTS_BUCKET`
-- 동작: APK 빌드 → Firebase Test Lab robo run → `docs/android_device_qa_last_run.md` 리포트 생성
+- 동작: APK 빌드 → Firebase Test Lab robo run → `artifacts/qa_reports/android_device_qa_last_run.md` 리포트 생성

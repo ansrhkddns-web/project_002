@@ -6,7 +6,7 @@ APK_PATH="${1:-$ROOT_DIR/android/app/build/outputs/apk/debug/app-debug.apk}"
 PACKAGE="com.timeflow.app"
 ACTIVITY=".MainActivity"
 LOG_OUT="${ROOT_DIR}/android_device_qa_logcat.txt"
-REPORT_OUT="${ROOT_DIR}/docs/android_device_qa_last_run.md"
+REPORT_OUT="${REPORT_OUT:-${ROOT_DIR}/artifacts/qa_reports/android_device_qa_last_run.md}"
 
 STATUS="FAIL"
 REASON="unknown"
@@ -15,6 +15,7 @@ STARTED_AT="$(date -Iseconds)"
 write_report() {
   local finished_at
   finished_at="$(date -Iseconds)"
+  mkdir -p "$(dirname "$REPORT_OUT")"
   cat > "$REPORT_OUT" <<RPT
 # Android Device QA Last Run
 

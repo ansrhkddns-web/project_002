@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-REPORT="${ROOT_DIR}/docs/play_upload_verification_last_run.md"
+REPORT="${REPORT_OUT:-${ROOT_DIR}/artifacts/qa_reports/play_upload_verification_last_run.md}"
 
 STATUS="${STATUS:-FAIL}"
 REASON="${REASON:-unknown}"
@@ -11,7 +11,7 @@ PACKAGE_NAME="${PACKAGE_NAME:-com.timeflow.app}"
 RUN_URL="${RUN_URL:-}"
 RUN_ID="${RUN_ID:-}"
 
-mkdir -p "${ROOT_DIR}/docs"
+mkdir -p "$(dirname "$REPORT")"
 cat > "$REPORT" <<RPT
 # Play Upload Verification Last Run
 

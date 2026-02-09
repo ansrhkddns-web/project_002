@@ -25,7 +25,7 @@
   - [x] 실기기 QA 체크리스트 문서/자동화 스크립트 추가 (`docs/android_device_qa_checklist.md`, `scripts/android-device-qa.sh`)
   - [x] CI 에뮬레이터 QA 워크플로 추가 (`.github/workflows/android-device-qa.yml`)
   - [x] Firebase Test Lab 기반 클라우드 실기기 QA 워크플로 추가 (`.github/workflows/android-real-device-qa.yml`)
-  - [ ] 실제 디바이스에서 Pass 판정 기록 (`docs/android_device_qa_last_run.md`)
+  - [ ] 실제 디바이스에서 Pass 판정 기록 (`artifacts/qa_reports/android_device_qa_last_run.md`)
 - [ ] 외부 알림 채널 연동 (Slack/메일/PagerDuty)
   - [x] webhook 기반 서버 알림 훅 추가 (`ALERT_WEBHOOK_URL`)
   - [x] 채널별 라우팅 환경변수 추가 (`ALERT_SLACK_WEBHOOK_URL`, `ALERT_PAGERDUTY_ROUTING_KEY`, `ALERT_EMAIL_WEBHOOK_URL`)
@@ -36,7 +36,7 @@
   - [x] GitHub Actions release workflow 초안 추가 (`.github/workflows/android-release.yml`)
   - [x] Play Console 업로드 자동화(서비스 계정) 연결 워크플로 단계 추가 (`Upload to Google Play` optional step)
   - [ ] 운영 시크릿 주입 후 실제 업로드 검증
-  - [x] 업로드 검증 리포트 자동 생성 스크립트/아티팩트 추가 (`scripts/play-upload-verification-report.sh`, `docs/play_upload_verification_last_run.md`)
+  - [x] 업로드 검증 리포트 자동 생성 스크립트/아티팩트 추가 (`scripts/play-upload-verification-report.sh`, `artifacts/qa_reports/play_upload_verification_last_run.md`)
 
 ## 바로 확인 명령어
 ```bash

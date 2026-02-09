@@ -1,11 +1,7 @@
-# Android Device QA Last Run
+# Android Device QA Last Run (Template)
 
-- startedAt: 2026-02-07T11:38:07+00:00
-- finishedAt: 2026-02-07T11:38:07+00:00
-- status: FAIL
-- reason: missing_command:adb
-- apkPath: /workspace/project_002/android/app/build/outputs/apk/debug/app-debug.apk
-- logPath: /workspace/project_002/android_device_qa_logcat.txt
+실제 최신 실행 리포트는 기본적으로 아래 경로에 생성됩니다.
 
-## Next Action
-- If status is FAIL due to environment/tooling (e.g. adb missing), run again on a machine with Android SDK Platform Tools + connected device.
+- `artifacts/qa_reports/android_device_qa_last_run.md`
+
+> 참고: CI 워크플로 아티팩트에서도 동일 리포트를 확인할 수 있습니다.

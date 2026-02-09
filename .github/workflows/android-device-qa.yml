@@ -52,5 +52,5 @@ jobs:
         with:
           name: android-device-qa-report
           path: |
-            docs/android_device_qa_last_run.md
+            artifacts/qa_reports/android_device_qa_last_run.md
             android_device_qa_logcat.txt

@@ -4,3 +4,6 @@ node_modules/
 android/.gradle/
 android/app/build/
 android/local.properties
+
+# Local/CI generated QA reports
+artifacts/qa_reports/
