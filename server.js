@@ -316,8 +316,16 @@ async function maybeAlertKeyExpiry(envelope) {
   });
 }
 
+function loadSignedBundleFromFile() {
+  return fs.readFileSync(BUNDLE_FILE, 'utf8');
+}
+
 async function loadSignedBundle() {
-  if (SECRETS_PROXY_BACKEND_URL) {
+  if (!SECRETS_PROXY_BACKEND_URL) {
+    return loadSignedBundleFromFile();
+  }
+
+  try {
     const headers = { Accept: 'application/json' };
     if (SECRETS_PROXY_BACKEND_TOKEN) {
       headers.Authorization = `Bearer ${SECRETS_PROXY_BACKEND_TOKEN}`;
@@ -334,11 +342,11 @@ async function loadSignedBundle() {
       clearTimeout(timer);
     });
     if (!res.ok) throw new Error('secrets_backend_unavailable');
-    const body = await res.text();
-    return body;
+    return await res.text();
+  } catch (error) {
+    console.warn('[server] secrets backend fetch failed, falling back to local bundle:', error?.message || String(error));
+    return loadSignedBundleFromFile();
   }
-
-  return fs.readFileSync(BUNDLE_FILE, 'utf8');
 }
 
 function serveStatic(req, res, pathname) {

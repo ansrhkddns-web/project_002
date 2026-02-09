@@ -34,6 +34,15 @@ summary_code=$(curl -s -o /tmp/p002_summary.json -w '%{http_code}' -H 'Authoriza
 [[ "$analytics_code" == "202" ]]
 [[ "$summary_code" == "200" ]]
 
+# secrets backend failure should fall back to local file bundle
+cleanup
+SECRETS_PROXY_BACKEND_URL=http://127.0.0.1:9/unavailable SECRETS_PROXY_TIMEOUT_MS=200 node server.js >/tmp/p002_bug_smoke_server_fallback.log 2>&1 &
+SERVER_PID=$!
+trap cleanup EXIT
+sleep 1
+fallback_code=$(curl -s -o /tmp/p002_fallback.json -w '%{http_code}' -H 'Authorization: Bearer loopic-ops-dev-token' http://127.0.0.1:4173/api/sdk-keys)
+[[ "$fallback_code" == "200" ]]
+
 node - <<'NODE'
 const fs = require('fs');
 const crypto = require('crypto');
