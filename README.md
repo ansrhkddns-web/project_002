@@ -99,4 +99,11 @@ npm run android:install
 ## 서버 분석 집계/알림(신규)
 - 클라이언트는 `analyticsIngestToken`(localStorage) 또는 `window.__ANALYTICS_INGEST_TOKEN`으로 `/api/analytics-events`에 이벤트를 전송합니다.
 - Ops 대시보드는 `/api/analytics-summary`(Bearer 필요)에서 최근 1시간 실패율을 조회합니다.
-- `ALERT_WEBHOOK_URL` 환경변수를 설정하면 실패율(20% 이상) 시 webhook 알림을 보냅니다.
+- `ALERT_WEBHOOK_URL` 환경변수를 설정하면 실패율(20% 이상) 시 공통 webhook 알림을 보냅니다.
+- 채널별 라우팅: `ALERT_SLACK_WEBHOOK_URL`, `ALERT_PAGERDUTY_ROUTING_KEY`, `ALERT_EMAIL_WEBHOOK_URL` + `ALERT_EMAIL_TO`
+
+
+## Android 릴리즈 파이프라인(초안)
+- GitHub Actions: `.github/workflows/android-release.yml`
+- 수행 항목: 웹에셋 동기화 → `bundleRelease` → (선택) keystore signing → AAB artifact 업로드
+- 남은 작업: Play Console 업로드 자동화(서비스 계정 키/트랙 전략)

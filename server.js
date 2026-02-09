@@ -12,6 +12,11 @@ const ALLOWED_ORIGINS = new Set((process.env.SDK_KEY_ALLOWED_ORIGINS || '').spli
 const RATE_LIMIT_PER_MIN = Number(process.env.SDK_KEY_RATE_LIMIT_PER_MIN || 60);
 const ANALYTICS_INGEST_TOKEN = process.env.ANALYTICS_INGEST_TOKEN || 'loopic-analytics-dev-token';
 const ALERT_WEBHOOK_URL = (process.env.ALERT_WEBHOOK_URL || '').trim();
+const ALERT_SLACK_WEBHOOK_URL = (process.env.ALERT_SLACK_WEBHOOK_URL || '').trim();
+const ALERT_PAGERDUTY_EVENTS_URL = (process.env.ALERT_PAGERDUTY_EVENTS_URL || 'https://events.pagerduty.com/v2/enqueue').trim();
+const ALERT_PAGERDUTY_ROUTING_KEY = (process.env.ALERT_PAGERDUTY_ROUTING_KEY || '').trim();
+const ALERT_EMAIL_WEBHOOK_URL = (process.env.ALERT_EMAIL_WEBHOOK_URL || '').trim();
+const ALERT_EMAIL_TO = (process.env.ALERT_EMAIL_TO || '').trim();
 
 const ipHits = new Map();
 const analyticsStore = {
@@ -135,9 +140,71 @@ function summarizeAnalytics() {
   };
 }
 
-async function sendAlertIfNeeded(summary) {
-  if (!ALERT_WEBHOOK_URL) return;
+async function postJson(url, payload) {
+  if (!url) return;
+  await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
 
+async function dispatchAlerts(summary) {
+  const basePayload = {
+    source: 'timeflow-server',
+    type: 'analytics_failure_rate_alert',
+    summary,
+    at: new Date().toISOString(),
+  };
+
+  const tasks = [];
+
+  if (ALERT_WEBHOOK_URL) {
+    tasks.push(postJson(ALERT_WEBHOOK_URL, basePayload));
+  }
+
+  if (ALERT_SLACK_WEBHOOK_URL) {
+    tasks.push(postJson(ALERT_SLACK_WEBHOOK_URL, {
+      text: `[timeflow] failure-rate alert purchase=${summary.failureRates.purchaseFailedPct}% ad=${summary.failureRates.adFailedPct}% sdk=${summary.failureRates.sdkBundleLoadFailedPct}%`,
+      blocks: [
+        {
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text: `*TimeFlow Alert*\n• purchase_failed: ${summary.failureRates.purchaseFailedPct}%\n• ad_failed: ${summary.failureRates.adFailedPct}%\n• sdk_bundle_load_failed: ${summary.failureRates.sdkBundleLoadFailedPct}%`,
+          },
+        },
+      ],
+    }));
+  }
+
+  if (ALERT_PAGERDUTY_ROUTING_KEY) {
+    tasks.push(postJson(ALERT_PAGERDUTY_EVENTS_URL, {
+      routing_key: ALERT_PAGERDUTY_ROUTING_KEY,
+      event_action: 'trigger',
+      dedup_key: 'timeflow-analytics-failure-rate',
+      payload: {
+        summary: 'TimeFlow analytics failure-rate alert',
+        source: 'timeflow-server',
+        severity: 'error',
+        custom_details: summary,
+      },
+    }));
+  }
+
+  if (ALERT_EMAIL_WEBHOOK_URL && ALERT_EMAIL_TO) {
+    tasks.push(postJson(ALERT_EMAIL_WEBHOOK_URL, {
+      to: ALERT_EMAIL_TO,
+      subject: '[timeflow] analytics failure-rate alert',
+      body: `purchase=${summary.failureRates.purchaseFailedPct}% ad=${summary.failureRates.adFailedPct}% sdk=${summary.failureRates.sdkBundleLoadFailedPct}%`,
+      summary,
+    }));
+  }
+
+  await Promise.allSettled(tasks);
+}
+
+async function sendAlertIfNeeded(summary) {
   const severe = summary.failureRates.purchaseFailedPct >= 20
     || summary.failureRates.adFailedPct >= 20
     || summary.failureRates.sdkBundleLoadFailedPct >= 20;
@@ -147,15 +214,7 @@ async function sendAlertIfNeeded(summary) {
   analyticsStore.lastAlertAt = Date.now();
 
   try {
-    await fetch(ALERT_WEBHOOK_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        source: 'timeflow-server',
-        type: 'analytics_failure_rate_alert',
-        summary,
-      }),
-    });
+    await dispatchAlerts(summary);
   } catch {
     // alerting failure should not break ingestion
   }
@@ -264,4 +323,5 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`[server] http://localhost:${PORT}`);
   console.log('[server] Use Authorization: Bearer <token> for /api/sdk-keys');
   console.log('[server] Use Authorization: Bearer <token> for /api/analytics-events and /api/analytics-summary');
+  console.log('[server] Alert channels: ALERT_WEBHOOK_URL / ALERT_SLACK_WEBHOOK_URL / ALERT_PAGERDUTY_ROUTING_KEY / ALERT_EMAIL_WEBHOOK_URL');
 });
