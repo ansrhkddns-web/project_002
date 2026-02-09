@@ -19,7 +19,11 @@ const ALERT_EMAIL_WEBHOOK_URL = (process.env.ALERT_EMAIL_WEBHOOK_URL || '').trim
 const ALERT_EMAIL_TO = (process.env.ALERT_EMAIL_TO || '').trim();
 const SECRETS_PROXY_BACKEND_URL = (process.env.SECRETS_PROXY_BACKEND_URL || '').trim();
 const SECRETS_PROXY_BACKEND_TOKEN = (process.env.SECRETS_PROXY_BACKEND_TOKEN || '').trim();
-const KEY_EXPIRY_ALERT_WINDOW_DAYS = Number(process.env.KEY_EXPIRY_ALERT_WINDOW_DAYS || 14);
+const RAW_KEY_EXPIRY_ALERT_WINDOW_DAYS = Number(process.env.KEY_EXPIRY_ALERT_WINDOW_DAYS || 14);
+const KEY_EXPIRY_ALERT_WINDOW_DAYS = Number.isFinite(RAW_KEY_EXPIRY_ALERT_WINDOW_DAYS) && RAW_KEY_EXPIRY_ALERT_WINDOW_DAYS >= 0
+  ? RAW_KEY_EXPIRY_ALERT_WINDOW_DAYS
+  : 14;
+const SECRETS_PROXY_TIMEOUT_MS = Number(process.env.SECRETS_PROXY_TIMEOUT_MS || 3000);
 
 const ipHits = new Map();
 const analyticsStore = {
@@ -273,6 +277,19 @@ async function dispatchOperationalAlert(payload) {
       body: JSON.stringify(payload),
     }));
   }
+  if (ALERT_PAGERDUTY_ROUTING_KEY) {
+    tasks.push(postJson(ALERT_PAGERDUTY_EVENTS_URL, {
+      routing_key: ALERT_PAGERDUTY_ROUTING_KEY,
+      event_action: 'trigger',
+      dedup_key: `timeflow-${payload.type}`,
+      payload: {
+        summary: `TimeFlow operational alert: ${payload.type}`,
+        source: 'timeflow-server',
+        severity: 'warning',
+        custom_details: payload.details || {},
+      },
+    }));
+  }
   await Promise.allSettled(tasks);
 }
 
@@ -301,12 +318,21 @@ async function maybeAlertKeyExpiry(envelope) {
 
 async function loadSignedBundle() {
   if (SECRETS_PROXY_BACKEND_URL) {
-    const headers = { 'Content-Type': 'application/json' };
+    const headers = { Accept: 'application/json' };
     if (SECRETS_PROXY_BACKEND_TOKEN) {
       headers.Authorization = `Bearer ${SECRETS_PROXY_BACKEND_TOKEN}`;
     }
 
-    const res = await fetch(SECRETS_PROXY_BACKEND_URL, { headers, cache: 'no-store' });
+    const controller = new AbortController();
+    const timeoutMs = Number.isFinite(SECRETS_PROXY_TIMEOUT_MS) && SECRETS_PROXY_TIMEOUT_MS > 0 ? SECRETS_PROXY_TIMEOUT_MS : 3000;
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const res = await fetch(SECRETS_PROXY_BACKEND_URL, {
+      headers,
+      cache: 'no-store',
+      signal: controller.signal,
+    }).finally(() => {
+      clearTimeout(timer);
+    });
     if (!res.ok) throw new Error('secrets_backend_unavailable');
     const body = await res.text();
     return body;
