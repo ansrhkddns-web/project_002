@@ -74,6 +74,9 @@ npm run android:install
 - SDK 키 번들 JWS(RS256) 검증 및 서명 키(kid) 추적
 - `/api/sdk-keys` Bearer 인증 + Origin 허용목록 + 간단 rate-limit 적용
 
+## 진행 상태 한눈에 보기
+- Done/Not Done 체크 문서: `docs/current_status_checklist.md`
+
 ## 운영 대시보드 모니터링 규칙
 - 만료 임박 경보: ads/billing/render `expiresAt`가 14일 이내면 `warning`, 이미 만료면 `critical`로 표기.
 - 서명 검증 실패율(1h): 최근 1시간 `sdkKeyMonitoring` 시도 기준 실패율 5% 이상 `warn`, 20% 이상 `bad`.
