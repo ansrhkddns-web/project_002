@@ -19,6 +19,7 @@
   - [x] `npm run android:sync` 동작 확인
   - [ ] 이 실행 환경에서 `assembleDebug` 성공 검증
     - 사유: 저장소/플러그인 해석 제한으로 AGP 아티팩트 resolve 실패 가능
+    - 최근 확인(2026-02-08): `npm run android:debug` 실행 시 `Unsupported class file major version 69`로 실패 (Gradle/JDK 호환 이슈)
 
 ## ❌ Not Done (미완료)
 - [ ] Android 실기기 통합 QA (카메라 권한/촬영/오디오/WebView 동작)
