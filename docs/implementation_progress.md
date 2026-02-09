@@ -33,6 +33,7 @@
 - Android 빌드 가능 구조 추가(android WebView 프로젝트 + assets sync 스크립트)
 - 서버 분석 집계 API/운영 대시보드 백엔드 연동(/api/analytics-events, /api/analytics-summary)
 - Android 실기기 QA 체크리스트/자동화 스크립트 추가(android-device-qa.sh + 문서)
+- Android QA 최근 실행 리포트 자동 기록(docs/android_device_qa_last_run.md)
 
 ## 🔄 남은 작업
 - (현재 기준 핵심 기능 작업 완료, 운영 고도화 단계)

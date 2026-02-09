@@ -76,6 +76,8 @@ npm run android:install
 
 상세 수동 체크 항목은 `docs/android_device_qa_checklist.md` 참고.
 
+실행 결과(최근 1회)는 `docs/android_device_qa_last_run.md`에 자동 기록됩니다.
+
 ## 구현 포인트
 - 온보딩 4페이지 + 완료 플래그(localStorage)
 - 하단 탭 내비게이션
